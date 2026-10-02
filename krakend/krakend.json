@@ -1,0 +1,70 @@
+{
+  "version": 3,
+  "name": "Online Auction API Gateway",
+  "port": 8080,
+  "timeout": "3000ms",
+  "cache_ttl": "300s",
+  "output_encoding": "json",
+  "endpoints": [
+    {
+      "endpoint": "/api/auth/{wildcard}",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "backend": [
+        {
+          "url_pattern": "/{wildcard}",
+          "encoding": "no-op",
+          "method": "GET",
+          "host": [
+            "http://host.docker.internal:3001"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/auth/{wildcard}",
+      "method": "POST",
+      "output_encoding": "no-op",
+      "backend": [
+        {
+          "url_pattern": "/{wildcard}",
+          "encoding": "no-op",
+          "method": "POST",
+          "host": [
+            "http://host.docker.internal:3001"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/products/{wildcard}",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "backend": [
+        {
+          "url_pattern": "/{wildcard}",
+          "encoding": "no-op",
+          "method": "GET",
+          "host": [
+            "http://host.docker.internal:3002"
+          ]
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/auctions/{wildcard}",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "backend": [
+        {
+          "url_pattern": "/{wildcard}",
+          "encoding": "no-op",
+          "method": "GET",
+          "host": [
+            "http://host.docker.internal:3003"
+          ]
+        }
+      ]
+    }
+  ]
+}

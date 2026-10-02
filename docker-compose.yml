@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: online-auction-postgres
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: root_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
+    networks:
+      - auction-network
+  redis:
+    image: redis:7-alpine
+    container_name: online-auction-redis
+    ports:
+      - '6379:6379'
+    networks:
+      - auction-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: online-auction-rabbitmq
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    networks:
+      - auction-network
+
+  krakend:
+    image: devopsfaith/krakend:2.6.0
+    container_name: online-auction-gateway
+    ports:
+      - '8080:8080'
+    volumes:
+      - ./krakend:/etc/krakend
+    command: run -d -c /etc/krakend/krakend.json
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - auction-network
+
+volumes:
+  postgres-data:
+  
+networks:
+  auction-network:
+    driver: bridge      
