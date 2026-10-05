@@ -7,3 +7,14 @@ generator client {
   provider = "prisma-client-js"
   output   = "../../../node_modules/@prisma/client/auth"
 }
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  password     String
+  name         String
+  role         String   @default("USER")
+  refreshToken String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

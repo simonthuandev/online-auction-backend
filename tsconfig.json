@@ -26,9 +26,6 @@
   "files": [],
   "references": [
     {
-      "path": "./apps/online-auction-backend/tsconfig.app.json"
-    },
-    {
       "path": "./apps/auth-service/tsconfig.app.json"
     },
     {
