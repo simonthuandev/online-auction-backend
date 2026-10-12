@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Prisma, User } from '@prisma/client/auth/index.js';
+import { Prisma, User, RefreshToken } from '@prisma/client/auth/index.js';
 
 @Injectable()
 export class UsersService {
@@ -24,10 +24,35 @@ export class UsersService {
     });
   }
 
-  async updateRefreshToken(userId: string, refreshToken: string | null): Promise<User> {
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { refreshToken },
+  async saveRefreshToken(userId: string, token: string, familyId: string, expiresAt: Date): Promise<RefreshToken> {
+    return this.prisma.refreshToken.create({
+      data: {
+        token,
+        familyId,
+        userId,
+        expiresAt,
+      },
+    });
+  }
+
+  async findRefreshToken(token: string): Promise<RefreshToken | null> {
+    return this.prisma.refreshToken.findUnique({
+      where: { token },
+      include: { user: true },
+    });
+  }
+
+  async revokeTokenFamily(familyId: string): Promise<void> {
+    await this.prisma.refreshToken.updateMany({
+      where: { familyId },
+      data: { isRevoked: true },
+    });
+  }
+
+  async markTokenAsRevoked(id: string): Promise<void> {
+    await this.prisma.refreshToken.update({
+      where: { id },
+      data: { isRevoked: true },
     });
   }
 }

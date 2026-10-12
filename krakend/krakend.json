@@ -40,6 +40,16 @@
       "endpoint": "/api/products/{wildcard}",
       "method": "GET",
       "output_encoding": "no-op",
+      "extra_config": {
+        "auth/validator": {
+          "alg": "HS256",
+          "jwk_local_path": "/etc/krakend/jwk.json",
+          "propagate_claims": [
+            ["sub", "x-user-id"],
+            ["role", "x-user-role"]
+          ]
+        }
+      },
       "backend": [
         {
           "url_pattern": "/{wildcard}",
