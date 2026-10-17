@@ -21,10 +21,17 @@
     "types": [
       "vitest/globals",
       "node"
-    ]
+    ],
+    "paths": {
+      "@app/common": ["./libs/common/src/index.ts", "./libs/common/src/index.js"],
+      "@app/common/*": ["./libs/common/src/*"]
+    }
   },
   "files": [],
   "references": [
+    {
+      "path": "./libs/common/tsconfig.lib.json"
+    },
     {
       "path": "./apps/auth-service/tsconfig.app.json"
     },
