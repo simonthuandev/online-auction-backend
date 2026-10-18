@@ -28,7 +28,8 @@
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "prisma:generate:all": "prisma generate --schema=apps/auth-service/prisma/schema.prisma && prisma generate --schema=apps/product-service/prisma/schema.prisma && prisma generate --schema=apps/auction-service/prisma/schema.prisma && prisma generate --schema=apps/order-service/prisma/schema.prisma && prisma generate --schema=apps/payment-service/prisma/schema.prisma && prisma generate --schema=apps/notification-service/prisma/schema.prisma",
-    "prisma:push:all": "dotenv -e .env -- bash -c 'prisma db push --schema=apps/auth-service/prisma/schema.prisma && prisma db push --schema=apps/product-service/prisma/schema.prisma && prisma db push --schema=apps/auction-service/prisma/schema.prisma && prisma db push --schema=apps/order-service/prisma/schema.prisma && prisma db push --schema=apps/payment-service/prisma/schema.prisma && prisma db push --schema=apps/notification-service/prisma/schema.prisma'"
+    "prisma:push:all": "dotenv -e .env -- bash -c 'prisma db push --schema=apps/auth-service/prisma/schema.prisma && prisma db push --schema=apps/product-service/prisma/schema.prisma && prisma db push --schema=apps/auction-service/prisma/schema.prisma && prisma db push --schema=apps/order-service/prisma/schema.prisma && prisma db push --schema=apps/payment-service/prisma/schema.prisma && prisma db push --schema=apps/notification-service/prisma/schema.prisma'",
+    "gen:jwk": "node scripts/generate-jwk.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
