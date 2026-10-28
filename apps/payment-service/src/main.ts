@@ -1,8 +1,4 @@
-import { NestFactory } from '@nestjs/core';
-import { PaymentServiceModule } from './payment-service.module.js';
-
-async function bootstrap() {
-  const app = await NestFactory.create(PaymentServiceModule);
-  await app.listen(process.env.port ?? 3000);
-}
-await bootstrap();
+import { bootstrap, loadPlatformEnvironment } from '@app/common';
+loadPlatformEnvironment('payment');
+const { PaymentServiceModule } = await import('./payment-service.module.js');
+await bootstrap('payment', PaymentServiceModule);

@@ -1,78 +1,1147 @@
 {
   "version": 3,
-  "name": "Online Auction API Gateway",
+  "name": "Online Auction API",
   "port": 8080,
-  "timeout": "3000ms",
-  "cache_ttl": "300s",
-  "output_encoding": "json",
+  "timeout": "5000ms",
+  "extra_config": {
+    "security/cors": {
+      "allow_origins": [
+        "http://localhost:3000",
+        "http://localhost:5173"
+      ],
+      "allow_methods": [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS"
+      ],
+      "allow_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "expose_headers": [
+        "X-Request-Id"
+      ],
+      "max_age": "12h"
+    }
+  },
   "endpoints": [
     {
-      "endpoint": "/api/auth/{wildcard}",
+      "endpoint": "/api/auth/health",
       "method": "GET",
       "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
       "backend": [
         {
-          "url_pattern": "/{wildcard}",
-          "encoding": "no-op",
-          "method": "GET",
           "host": [
-            "http://host.docker.internal:3001"
-          ]
+            "http://auth-service:3001"
+          ],
+          "url_pattern": "/health/ready",
+          "method": "GET",
+          "encoding": "no-op"
         }
       ]
     },
     {
-      "endpoint": "/api/auth/{wildcard}",
+      "endpoint": "/api/auth/register",
       "method": "POST",
       "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
       "backend": [
         {
-          "url_pattern": "/{wildcard}",
-          "encoding": "no-op",
-          "method": "POST",
           "host": [
-            "http://host.docker.internal:3001"
-          ]
+            "http://auth-service:3001"
+          ],
+          "url_pattern": "/register",
+          "method": "POST",
+          "encoding": "no-op"
         }
       ]
     },
     {
-      "endpoint": "/api/products/{wildcard}",
+      "endpoint": "/api/auth/login",
+      "method": "POST",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://auth-service:3001"
+          ],
+          "url_pattern": "/login",
+          "method": "POST",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/auth/refresh",
+      "method": "POST",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://auth-service:3001"
+          ],
+          "url_pattern": "/refresh",
+          "method": "POST",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/auth/logout",
+      "method": "POST",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://auth-service:3001"
+          ],
+          "url_pattern": "/logout",
+          "method": "POST",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/auth/me",
       "method": "GET",
       "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
       "extra_config": {
         "auth/validator": {
-          "alg": "HS256",
-          "jwk_local_path": "/etc/krakend/jwk.json",
-          "propagate_claims": [
-            ["sub", "x-user-id"],
-            ["role", "x-user-role"]
-          ]
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
         }
       },
       "backend": [
         {
-          "url_pattern": "/{wildcard}",
-          "encoding": "no-op",
-          "method": "GET",
           "host": [
-            "http://host.docker.internal:3002"
-          ]
+            "http://auth-service:3001"
+          ],
+          "url_pattern": "/users/me",
+          "method": "GET",
+          "encoding": "no-op"
         }
       ]
     },
     {
-      "endpoint": "/api/auctions/{wildcard}",
-      "method": "GET",
+      "endpoint": "/api/auth/me",
+      "method": "PATCH",
       "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
       "backend": [
         {
-          "url_pattern": "/{wildcard}",
-          "encoding": "no-op",
-          "method": "GET",
           "host": [
-            "http://host.docker.internal:3003"
-          ]
+            "http://auth-service:3001"
+          ],
+          "url_pattern": "/users/me",
+          "method": "PATCH",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/admin/users/{id}/role",
+      "method": "PATCH",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "http://auth-service:3001"
+          ],
+          "url_pattern": "/admin/users/{id}/role",
+          "method": "PATCH",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/product/health",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://product-service:3002"
+          ],
+          "url_pattern": "/health/ready",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/categories",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://product-service:3002"
+          ],
+          "url_pattern": "/categories",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/categories",
+      "method": "POST",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "http://product-service:3002"
+          ],
+          "url_pattern": "/categories",
+          "method": "POST",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/categories/{id}",
+      "method": "PATCH",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "http://product-service:3002"
+          ],
+          "url_pattern": "/categories/{id}",
+          "method": "PATCH",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/categories/{id}",
+      "method": "DELETE",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "http://product-service:3002"
+          ],
+          "url_pattern": "/categories/{id}",
+          "method": "DELETE",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/products",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://product-service:3002"
+          ],
+          "url_pattern": "/products",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/products",
+      "method": "POST",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "http://product-service:3002"
+          ],
+          "url_pattern": "/products",
+          "method": "POST",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/products/{id}",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://product-service:3002"
+          ],
+          "url_pattern": "/products/{id}",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/products/{id}",
+      "method": "PATCH",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "http://product-service:3002"
+          ],
+          "url_pattern": "/products/{id}",
+          "method": "PATCH",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/products/{id}",
+      "method": "DELETE",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "http://product-service:3002"
+          ],
+          "url_pattern": "/products/{id}",
+          "method": "DELETE",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/auction/health",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://auction-service:3003"
+          ],
+          "url_pattern": "/health/ready",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/auctions",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://auction-service:3003"
+          ],
+          "url_pattern": "/auctions",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/auctions",
+      "method": "POST",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "http://auction-service:3003"
+          ],
+          "url_pattern": "/auctions",
+          "method": "POST",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/auctions/{id}",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://auction-service:3003"
+          ],
+          "url_pattern": "/auctions/{id}",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/auctions/{id}/bids",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://auction-service:3003"
+          ],
+          "url_pattern": "/auctions/{id}/bids",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/auctions/{id}/bids",
+      "method": "POST",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "http://auction-service:3003"
+          ],
+          "url_pattern": "/auctions/{id}/bids",
+          "method": "POST",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/order/health",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://order-service:3004"
+          ],
+          "url_pattern": "/health/ready",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/orders",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "http://order-service:3004"
+          ],
+          "url_pattern": "/orders",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/orders/{id}",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "http://order-service:3004"
+          ],
+          "url_pattern": "/orders/{id}",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/payment/health",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://payment-service:3005"
+          ],
+          "url_pattern": "/health/ready",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/payments",
+      "method": "POST",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "http://payment-service:3005"
+          ],
+          "url_pattern": "/payments",
+          "method": "POST",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/payments/order/{orderId}",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "http://payment-service:3005"
+          ],
+          "url_pattern": "/payments/order/{orderId}",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/payments/vnpay/ipn",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://payment-service:3005"
+          ],
+          "url_pattern": "/payments/vnpay/ipn",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/payments/vnpay/return",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://payment-service:3005"
+          ],
+          "url_pattern": "/payments/vnpay/return",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/notification/health",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "backend": [
+        {
+          "host": [
+            "http://notification-service:3006"
+          ],
+          "url_pattern": "/health/ready",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/notifications",
+      "method": "GET",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "http://notification-service:3006"
+          ],
+          "url_pattern": "/notifications",
+          "method": "GET",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
+      "endpoint": "/api/notifications/{id}/read",
+      "method": "PATCH",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "http://notification-service:3006"
+          ],
+          "url_pattern": "/notifications/{id}/read",
+          "method": "PATCH",
+          "encoding": "no-op"
         }
       ]
     }

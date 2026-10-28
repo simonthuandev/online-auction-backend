@@ -3,8 +3,16 @@
   "compilerOptions": {
     "declaration": false,
     "rootDir": "../..",
-    "outDir": "../../dist/apps/order-service"
+    "outDir": "../../dist/apps/order-service",
+    "tsBuildInfoFile": "../../dist/cache/order.tsbuildinfo"
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "**/*spec.ts"
+  ]
 }

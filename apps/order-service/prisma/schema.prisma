@@ -1,9 +1,51 @@
 datasource db {
   provider = "postgresql"
-  url      = env("ORDER_DATABASE_URL")
+  url = env("ORDER_DATABASE_URL")
 }
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../../../node_modules/@prisma/client/order"
+  output = "../../../node_modules/@prisma/client/order"
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  CANCELLED
+  COMPLETED
+}
+
+model Order {
+  id String @id @default(uuid())
+  auctionId String @unique
+  productId String
+  buyerId String
+  sellerId String
+  totalAmount Decimal @db.Decimal(18,2)
+  currency String @default("VND")
+  status OrderStatus @default(PENDING_PAYMENT)
+  productTitle String
+  productThumbnail String?
+  paymentId String? @unique
+  paidAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([buyerId, createdAt])
+  @@index([sellerId, createdAt])
+}
+
+model PlatformProbe {
+  id String @id @default(uuid())
+  runId String
+  kind String
+  data Json
+  createdAt DateTime @default(now())
+  @@unique([runId, kind])
+}
+
+model ProcessedEvent {
+  consumerName String
+  eventId String
+  processedAt DateTime @default(now())
+  @@id([consumerName, eventId])
 }

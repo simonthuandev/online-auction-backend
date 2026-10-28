@@ -1,9 +1,76 @@
 datasource db {
   provider = "postgresql"
-  url      = env("PRODUCT_DATABASE_URL")
+  url = env("PRODUCT_DATABASE_URL")
 }
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../../../node_modules/@prisma/client/product"
+  output = "../../../node_modules/@prisma/client/product"
+}
+
+enum ProductStatus {
+  DRAFT
+  READY
+  RESERVED
+  IN_AUCTION
+  SOLD
+}
+
+enum ProductCondition {
+  NEW
+  USED
+  LIKE_NEW
+}
+
+model Category {
+  id String @id @default(uuid())
+  name String @unique
+  description String?
+  products Product[]
+  createdAt DateTime @default(now())
+}
+
+model Product {
+  id String @id @default(uuid())
+  sellerId String
+  categoryId String
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  title String
+  description String
+  condition ProductCondition @default(NEW)
+  status ProductStatus @default(DRAFT)
+  reservedAuctionId String? @unique
+  reservationSnapshot Json?
+  lastAuctionVersion Int @default(0)
+  images ProductImage[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([sellerId, createdAt])
+  @@index([categoryId, status])
+}
+
+model ProductImage {
+  id String @id @default(uuid())
+  productId String
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url String
+  isPrimary Boolean @default(false)
+  createdAt DateTime @default(now())
+  @@index([productId])
+}
+
+model PlatformProbe {
+  id String @id @default(uuid())
+  runId String
+  kind String
+  data Json
+  createdAt DateTime @default(now())
+  @@unique([runId, kind])
+}
+
+model ProcessedEvent {
+  consumerName String
+  eventId String
+  processedAt DateTime @default(now())
+  @@id([consumerName, eventId])
 }

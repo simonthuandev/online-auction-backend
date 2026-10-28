@@ -1,31 +1,22 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Get } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
-
 @Controller()
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
-
-  @Get('health')
-  async health() {
-    return {
-      message: "oke"
-    };
+  constructor(private readonly auth: AuthService) {}
+  @Post('register') register(
+    @Body() body: { email: string; password: string; name: string },
+  ) {
+    return this.auth.register(body);
   }
-
-  @Post('register')
-  async register(@Body() registerDto: any) {
-    return this.authService.register(registerDto);
+  @HttpCode(200) @Post('login') login(
+    @Body() body: { email: string; password: string },
+  ) {
+    return this.auth.login(body);
   }
-
-  @HttpCode(HttpStatus.OK)
-  @Post('login')
-  async login(@Body() loginDto: any) {
-    return this.authService.login(loginDto);
+  @HttpCode(200) @Post('refresh') refresh(@Body('refreshToken') token: string) {
+    return this.auth.refresh(token);
   }
-
-  @HttpCode(HttpStatus.OK)
-  @Post('refresh')
-  async refresh(@Body('refreshToken') refreshToken: string) {
-    return this.authService.refresh(refreshToken);
+  @HttpCode(200) @Post('logout') logout(@Body('refreshToken') token: string) {
+    return this.auth.logout(token);
   }
 }

@@ -1,9 +1,91 @@
 datasource db {
   provider = "postgresql"
-  url      = env("PAYMENT_DATABASE_URL")
+  url = env("PAYMENT_DATABASE_URL")
 }
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../../../node_modules/@prisma/client/payment"
+  output = "../../../node_modules/@prisma/client/payment"
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  EXPIRED
+}
+
+enum PaymentMethod {
+  COD
+  VNPAY
+}
+
+model Payment {
+  id String @id @default(uuid())
+  orderId String @unique
+  userId String
+  amount Decimal @db.Decimal(18,2)
+  currency String @default("VND")
+  status PaymentStatus @default(PENDING)
+  paidAt DateTime?
+  attempts PaymentAttempt[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId, createdAt])
+}
+
+model PaymentAttempt {
+  id String @id @default(uuid())
+  paymentId String
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  paymentMethod PaymentMethod
+  providerReference String @unique
+  transactionId String? @unique
+  status PaymentStatus @default(PENDING)
+  expiresAt DateTime
+  paidAt DateTime?
+  providerResponse Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([paymentId, createdAt])
+}
+
+model PlatformProbe {
+  id String @id @default(uuid())
+  runId String
+  kind String
+  data Json
+  createdAt DateTime @default(now())
+  @@unique([runId, kind])
+}
+
+model OutboxEvent {
+  id String @id
+  aggregateId String
+  aggregateVersion Int
+  exchange String
+  routingKey String
+  envelope Json
+  status String @default("PENDING")
+  attempts Int @default(0)
+  availableAt DateTime @default(now())
+  leaseUntil DateTime?
+  leaseOwner String?
+  lastError String?
+  createdAt DateTime @default(now())
+  sentAt DateTime?
+  @@unique([aggregateId, aggregateVersion])
+  @@index([status, availableAt])
+}
+
+model IdempotencyRecord {
+  id String @id @default(uuid())
+  actorId String
+  operation String
+  key String
+  requestHash String
+  response Json?
+  statusCode Int?
+  createdAt DateTime @default(now())
+  @@unique([actorId, operation, key])
 }

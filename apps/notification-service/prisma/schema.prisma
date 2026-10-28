@@ -1,9 +1,46 @@
 datasource db {
   provider = "postgresql"
-  url      = env("NOTIFICATION_DATABASE_URL")
+  url = env("NOTIFICATION_DATABASE_URL")
 }
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../../../node_modules/@prisma/client/notification"
+  output = "../../../node_modules/@prisma/client/notification"
+}
+
+enum NotificationType {
+  OUTBID
+  AUCTION_WON
+  AUCTION_ENDED
+  PAYMENT_SUCCESS
+}
+
+model Notification {
+  id String @id @default(uuid())
+  userId String
+  sourceEventId String
+  title String
+  message String
+  type NotificationType
+  isRead Boolean @default(false)
+  metadata Json
+  createdAt DateTime @default(now())
+  @@unique([sourceEventId, userId, type])
+  @@index([userId, createdAt])
+}
+
+model PlatformProbe {
+  id String @id @default(uuid())
+  runId String
+  kind String
+  data Json
+  createdAt DateTime @default(now())
+  @@unique([runId, kind])
+}
+
+model ProcessedEvent {
+  consumerName String
+  eventId String
+  processedAt DateTime @default(now())
+  @@id([consumerName, eventId])
 }
