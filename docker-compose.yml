@@ -1,56 +1,460 @@
+name: 'online-auction'
 services:
   postgres:
-    image: postgres:15-alpine
-    container_name: online-auction-postgres
-    restart: unless-stopped
-    ports:
-      - '${POSTGRES_PORT:-5432}:5432'
+    image: 'postgres:15-alpine'
+    restart: 'unless-stopped'
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
-      POSTGRES_DB: ${POSTGRES_DB:-root_db}
+      POSTGRES_USER: '${POSTGRES_USER}'
+      POSTGRES_PASSWORD: '${POSTGRES_PASSWORD}'
+      POSTGRES_DB: '${POSTGRES_DB}'
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./scripts/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
-    networks:
-      - auction-network
-
+      - 'postgres-data:/var/lib/postgresql/data'
+    healthcheck:
+      test:
+        - 'CMD-SHELL'
+        - 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+      interval: '5s'
+      timeout: '3s'
+      retries: 20
+      start_period: '10s'
   redis:
-    image: redis:7-alpine
-    container_name: online-auction-redis
-    restart: unless-stopped
-    ports:
-      - '${REDIS_PORT:-6379}:6379'
-    networks:
-      - auction-network
-
+    image: 'redis:7-alpine'
+    restart: 'unless-stopped'
+    environment:
+      REDIS_PASSWORD: '${REDIS_PASSWORD}'
+    command:
+      - 'sh'
+      - '-c'
+      - 'exec redis-server --requirepass "$REDIS_PASSWORD"'
+    healthcheck:
+      test:
+        - 'CMD-SHELL'
+        - 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep PONG'
+      interval: '5s'
+      timeout: '3s'
+      retries: 20
+      start_period: '10s'
   rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: online-auction-rabbitmq
-    restart: unless-stopped
-    ports:
-      - '${RABBITMQ_PORT:-5672}:5672'
-      - '${RABBITMQ_MANAGEMENT_PORT:-15672}:15672'
-    networks:
-      - auction-network
-
+    image: 'rabbitmq:4.2.0-management-alpine'
+    restart: 'unless-stopped'
+    environment:
+      RABBITMQ_DEFAULT_USER: '${RABBITMQ_USER}'
+      RABBITMQ_DEFAULT_PASS: '${RABBITMQ_PASSWORD}'
+    volumes:
+      - 'rabbitmq-data:/var/lib/rabbitmq'
+    healthcheck:
+      test:
+        - 'CMD-SHELL'
+        - 'rabbitmq-diagnostics -q ping'
+      interval: '5s'
+      timeout: '3s'
+      retries: 20
+      start_period: '10s'
+  db-bootstrap:
+    build:
+      context: '.'
+      target: 'dependencies'
+      args:
+        SERVICE_NAME: 'auth'
+    command:
+      - 'node'
+      - 'scripts/platform/db-bootstrap.mjs'
+    volumes:
+      - './scripts:/app/scripts:ro'
+    environment:
+      AUTH_DB_USER: '${AUTH_DB_USER}'
+      AUTH_DB_PASSWORD: '${AUTH_DB_PASSWORD}'
+      PRODUCT_DB_USER: '${PRODUCT_DB_USER}'
+      PRODUCT_DB_PASSWORD: '${PRODUCT_DB_PASSWORD}'
+      AUCTION_DB_USER: '${AUCTION_DB_USER}'
+      AUCTION_DB_PASSWORD: '${AUCTION_DB_PASSWORD}'
+      ORDER_DB_USER: '${ORDER_DB_USER}'
+      ORDER_DB_PASSWORD: '${ORDER_DB_PASSWORD}'
+      PAYMENT_DB_USER: '${PAYMENT_DB_USER}'
+      PAYMENT_DB_PASSWORD: '${PAYMENT_DB_PASSWORD}'
+      NOTIFICATION_DB_USER: '${NOTIFICATION_DB_USER}'
+      NOTIFICATION_DB_PASSWORD: '${NOTIFICATION_DB_PASSWORD}'
+      POSTGRES_USER: '${POSTGRES_USER}'
+      POSTGRES_PASSWORD: '${POSTGRES_PASSWORD}'
+      POSTGRES_DB: '${POSTGRES_DB}'
+      DB_HOST: 'postgres'
+      DB_PORT: '5432'
+    depends_on:
+      postgres:
+        condition: 'service_healthy'
+  gateway-config:
+    image: 'node:24-bookworm-slim'
+    user: '0:0'
+    command:
+      - 'node'
+      - 'scripts/platform/gateway-entry.mjs'
+    working_dir: '/app'
+    environment:
+      RUNTIME_MODE: '${RUNTIME_MODE:-docker}'
+      CORS_ORIGINS: '${CORS_ORIGINS}'
+      AUTH_PORT: '${AUTH_PORT:-3001}'
+      PRODUCT_PORT: '${PRODUCT_PORT:-3002}'
+      AUCTION_PORT: '${AUCTION_PORT:-3003}'
+      ORDER_PORT: '${ORDER_PORT:-3004}'
+      PAYMENT_PORT: '${PAYMENT_PORT:-3005}'
+      NOTIFICATION_PORT: '${NOTIFICATION_PORT:-3006}'
+      JWT_ISSUER: '${JWT_ISSUER}'
+      JWT_AUDIENCE: '${JWT_AUDIENCE}'
+    volumes:
+      - './scripts:/app/scripts:ro'
+      - './contracts:/app/contracts:ro'
+      - 'gateway-config:/output'
   krakend:
-    image: devopsfaith/krakend:2.6.0
-    container_name: online-auction-gateway
-    restart: unless-stopped
+    environment:
+      RUNTIME_MODE: '${RUNTIME_MODE:-docker}'
+    image: 'devopsfaith/krakend:2.6.0'
+    restart: 'unless-stopped'
     ports:
       - '${API_GATEWAY_PORT:-8080}:8080'
     volumes:
-      - ./krakend:/etc/krakend
-    command: run -d -c /etc/krakend/krakend.json
+      - 'gateway-config:/etc/krakend/config:ro'
+      - './.local/keys/jwk.json:/etc/krakend/keys/jwk.json:ro'
+    entrypoint:
+      - '/bin/sh'
+      - '-ec'
+    command:
+      - 'krakend check -c /etc/krakend/config/krakend.json && exec krakend run -c /etc/krakend/config/krakend.json'
     extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - auction-network
-
+      - 'host.docker.internal:host-gateway'
+    depends_on:
+      gateway-config:
+        condition: 'service_completed_successfully'
+  auth-migrate:
+    build:
+      context: '.'
+      target: 'migration'
+      args:
+        SERVICE_NAME: 'auth'
+    environment:
+      AUTH_DATABASE_URL: 'postgresql://${AUTH_DB_USER}:${AUTH_DB_PASSWORD}@postgres:5432/auth_db'
+    depends_on:
+      db-bootstrap:
+        condition: 'service_completed_successfully'
+  auth-service:
+    group_add:
+      - '${LOCAL_GID:-1000}'
+    build:
+      context: '.'
+      target: 'runtime'
+      args:
+        SERVICE_NAME: 'auth'
+    init: true
+    restart: 'unless-stopped'
+    environment:
+      JWT_ISSUER: '${JWT_ISSUER}'
+      JWT_AUDIENCE: '${JWT_AUDIENCE}'
+      JWT_KEY_ID: '${JWT_KEY_ID}'
+      PLATFORM_ADMIN_KEY: '${PLATFORM_ADMIN_KEY}'
+      CORS_ORIGINS: '${CORS_ORIGINS}'
+      JWT_PUBLIC_KEY_PATH: '/run/keys/public.pem'
+      RABBITMQ_URL: 'amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672'
+      REDIS_URL: 'redis://:${REDIS_PASSWORD}@redis:6379'
+      PLATFORM_DEMO_ENABLED: 'false'
+      AUTH_DATABASE_URL: 'postgresql://${AUTH_DB_USER}:${AUTH_DB_PASSWORD}@postgres:5432/auth_db'
+      AUTH_PORT: '3001'
+      NODE_ENV: 'production'
+      JWT_PRIVATE_KEY_PATH: '/run/keys/private.pem'
+      JWT_REFRESH_SECRET: '${JWT_REFRESH_SECRET}'
+    volumes:
+      - './.local/keys/public.pem:/run/keys/public.pem:ro'
+      - './.local/keys/private.pem:/run/keys/private.pem:ro'
+    stop_grace_period: '15s'
+    healthcheck:
+      test:
+        - 'CMD'
+        - 'node'
+        - '-e'
+        - "fetch('http://localhost:3001/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: '10s'
+      timeout: '4s'
+      retries: 10
+      start_period: '30s'
+    depends_on:
+      auth-migrate:
+        condition: 'service_completed_successfully'
+      rabbitmq:
+        condition: 'service_healthy'
+      redis:
+        condition: 'service_healthy'
+  product-migrate:
+    build:
+      context: '.'
+      target: 'migration'
+      args:
+        SERVICE_NAME: 'product'
+    environment:
+      PRODUCT_DATABASE_URL: 'postgresql://${PRODUCT_DB_USER}:${PRODUCT_DB_PASSWORD}@postgres:5432/product_db'
+    depends_on:
+      db-bootstrap:
+        condition: 'service_completed_successfully'
+  product-service:
+    build:
+      context: '.'
+      target: 'runtime'
+      args:
+        SERVICE_NAME: 'product'
+    init: true
+    restart: 'unless-stopped'
+    environment:
+      JWT_ISSUER: '${JWT_ISSUER}'
+      JWT_AUDIENCE: '${JWT_AUDIENCE}'
+      JWT_KEY_ID: '${JWT_KEY_ID}'
+      PLATFORM_ADMIN_KEY: '${PLATFORM_ADMIN_KEY}'
+      CORS_ORIGINS: '${CORS_ORIGINS}'
+      JWT_PUBLIC_KEY_PATH: '/run/keys/public.pem'
+      RABBITMQ_URL: 'amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672'
+      REDIS_URL: 'redis://:${REDIS_PASSWORD}@redis:6379'
+      PLATFORM_DEMO_ENABLED: 'false'
+      PRODUCT_DATABASE_URL: 'postgresql://${PRODUCT_DB_USER}:${PRODUCT_DB_PASSWORD}@postgres:5432/product_db'
+      PRODUCT_PORT: '3002'
+      NODE_ENV: 'production'
+      INTERNAL_AUCTION_KEY: '${INTERNAL_AUCTION_KEY}'
+    volumes:
+      - './.local/keys/public.pem:/run/keys/public.pem:ro'
+    stop_grace_period: '15s'
+    healthcheck:
+      test:
+        - 'CMD'
+        - 'node'
+        - '-e'
+        - "fetch('http://localhost:3002/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: '10s'
+      timeout: '4s'
+      retries: 10
+      start_period: '30s'
+    depends_on:
+      product-migrate:
+        condition: 'service_completed_successfully'
+      rabbitmq:
+        condition: 'service_healthy'
+      redis:
+        condition: 'service_healthy'
+  auction-migrate:
+    build:
+      context: '.'
+      target: 'migration'
+      args:
+        SERVICE_NAME: 'auction'
+    environment:
+      AUCTION_DATABASE_URL: 'postgresql://${AUCTION_DB_USER}:${AUCTION_DB_PASSWORD}@postgres:5432/auction_db'
+    depends_on:
+      db-bootstrap:
+        condition: 'service_completed_successfully'
+  auction-service:
+    build:
+      context: '.'
+      target: 'runtime'
+      args:
+        SERVICE_NAME: 'auction'
+    init: true
+    restart: 'unless-stopped'
+    environment:
+      JWT_ISSUER: '${JWT_ISSUER}'
+      JWT_AUDIENCE: '${JWT_AUDIENCE}'
+      JWT_KEY_ID: '${JWT_KEY_ID}'
+      PLATFORM_ADMIN_KEY: '${PLATFORM_ADMIN_KEY}'
+      CORS_ORIGINS: '${CORS_ORIGINS}'
+      JWT_PUBLIC_KEY_PATH: '/run/keys/public.pem'
+      RABBITMQ_URL: 'amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672'
+      REDIS_URL: 'redis://:${REDIS_PASSWORD}@redis:6379'
+      PLATFORM_DEMO_ENABLED: 'false'
+      AUCTION_DATABASE_URL: 'postgresql://${AUCTION_DB_USER}:${AUCTION_DB_PASSWORD}@postgres:5432/auction_db'
+      AUCTION_PORT: '3003'
+      NODE_ENV: 'production'
+      INTERNAL_AUCTION_KEY: '${INTERNAL_AUCTION_KEY}'
+      PRODUCT_SERVICE_URL: 'http://product-service:3002'
+    volumes:
+      - './.local/keys/public.pem:/run/keys/public.pem:ro'
+    stop_grace_period: '15s'
+    healthcheck:
+      test:
+        - 'CMD'
+        - 'node'
+        - '-e'
+        - "fetch('http://localhost:3003/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: '10s'
+      timeout: '4s'
+      retries: 10
+      start_period: '30s'
+    depends_on:
+      auction-migrate:
+        condition: 'service_completed_successfully'
+      rabbitmq:
+        condition: 'service_healthy'
+      redis:
+        condition: 'service_healthy'
+    ports:
+      - '${AUCTION_PORT:-3003}:3003'
+  order-migrate:
+    build:
+      context: '.'
+      target: 'migration'
+      args:
+        SERVICE_NAME: 'order'
+    environment:
+      ORDER_DATABASE_URL: 'postgresql://${ORDER_DB_USER}:${ORDER_DB_PASSWORD}@postgres:5432/order_db'
+    depends_on:
+      db-bootstrap:
+        condition: 'service_completed_successfully'
+  order-service:
+    build:
+      context: '.'
+      target: 'runtime'
+      args:
+        SERVICE_NAME: 'order'
+    init: true
+    restart: 'unless-stopped'
+    environment:
+      JWT_ISSUER: '${JWT_ISSUER}'
+      JWT_AUDIENCE: '${JWT_AUDIENCE}'
+      JWT_KEY_ID: '${JWT_KEY_ID}'
+      PLATFORM_ADMIN_KEY: '${PLATFORM_ADMIN_KEY}'
+      CORS_ORIGINS: '${CORS_ORIGINS}'
+      JWT_PUBLIC_KEY_PATH: '/run/keys/public.pem'
+      RABBITMQ_URL: 'amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672'
+      REDIS_URL: 'redis://:${REDIS_PASSWORD}@redis:6379'
+      PLATFORM_DEMO_ENABLED: 'false'
+      ORDER_DATABASE_URL: 'postgresql://${ORDER_DB_USER}:${ORDER_DB_PASSWORD}@postgres:5432/order_db'
+      ORDER_PORT: '3004'
+      NODE_ENV: 'production'
+      INTERNAL_PAYMENT_KEY: '${INTERNAL_PAYMENT_KEY}'
+    volumes:
+      - './.local/keys/public.pem:/run/keys/public.pem:ro'
+    stop_grace_period: '15s'
+    healthcheck:
+      test:
+        - 'CMD'
+        - 'node'
+        - '-e'
+        - "fetch('http://localhost:3004/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: '10s'
+      timeout: '4s'
+      retries: 10
+      start_period: '30s'
+    depends_on:
+      order-migrate:
+        condition: 'service_completed_successfully'
+      rabbitmq:
+        condition: 'service_healthy'
+      redis:
+        condition: 'service_healthy'
+  payment-migrate:
+    build:
+      context: '.'
+      target: 'migration'
+      args:
+        SERVICE_NAME: 'payment'
+    environment:
+      PAYMENT_DATABASE_URL: 'postgresql://${PAYMENT_DB_USER}:${PAYMENT_DB_PASSWORD}@postgres:5432/payment_db'
+    depends_on:
+      db-bootstrap:
+        condition: 'service_completed_successfully'
+  payment-service:
+    build:
+      context: '.'
+      target: 'runtime'
+      args:
+        SERVICE_NAME: 'payment'
+    init: true
+    restart: 'unless-stopped'
+    environment:
+      JWT_ISSUER: '${JWT_ISSUER}'
+      JWT_AUDIENCE: '${JWT_AUDIENCE}'
+      JWT_KEY_ID: '${JWT_KEY_ID}'
+      PLATFORM_ADMIN_KEY: '${PLATFORM_ADMIN_KEY}'
+      CORS_ORIGINS: '${CORS_ORIGINS}'
+      JWT_PUBLIC_KEY_PATH: '/run/keys/public.pem'
+      RABBITMQ_URL: 'amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672'
+      REDIS_URL: 'redis://:${REDIS_PASSWORD}@redis:6379'
+      PLATFORM_DEMO_ENABLED: 'false'
+      PAYMENT_DATABASE_URL: 'postgresql://${PAYMENT_DB_USER}:${PAYMENT_DB_PASSWORD}@postgres:5432/payment_db'
+      PAYMENT_PORT: '3005'
+      NODE_ENV: 'production'
+      INTERNAL_PAYMENT_KEY: '${INTERNAL_PAYMENT_KEY}'
+      ORDER_SERVICE_URL: 'http://order-service:3004'
+    volumes:
+      - './.local/keys/public.pem:/run/keys/public.pem:ro'
+    stop_grace_period: '15s'
+    healthcheck:
+      test:
+        - 'CMD'
+        - 'node'
+        - '-e'
+        - "fetch('http://localhost:3005/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: '10s'
+      timeout: '4s'
+      retries: 10
+      start_period: '30s'
+    depends_on:
+      payment-migrate:
+        condition: 'service_completed_successfully'
+      rabbitmq:
+        condition: 'service_healthy'
+      redis:
+        condition: 'service_healthy'
+  notification-migrate:
+    build:
+      context: '.'
+      target: 'migration'
+      args:
+        SERVICE_NAME: 'notification'
+    environment:
+      NOTIFICATION_DATABASE_URL: 'postgresql://${NOTIFICATION_DB_USER}:${NOTIFICATION_DB_PASSWORD}@postgres:5432/notification_db'
+    depends_on:
+      db-bootstrap:
+        condition: 'service_completed_successfully'
+  notification-service:
+    build:
+      context: '.'
+      target: 'runtime'
+      args:
+        SERVICE_NAME: 'notification'
+    init: true
+    restart: 'unless-stopped'
+    environment:
+      JWT_ISSUER: '${JWT_ISSUER}'
+      JWT_AUDIENCE: '${JWT_AUDIENCE}'
+      JWT_KEY_ID: '${JWT_KEY_ID}'
+      PLATFORM_ADMIN_KEY: '${PLATFORM_ADMIN_KEY}'
+      CORS_ORIGINS: '${CORS_ORIGINS}'
+      JWT_PUBLIC_KEY_PATH: '/run/keys/public.pem'
+      RABBITMQ_URL: 'amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672'
+      REDIS_URL: 'redis://:${REDIS_PASSWORD}@redis:6379'
+      PLATFORM_DEMO_ENABLED: 'false'
+      NOTIFICATION_DATABASE_URL: 'postgresql://${NOTIFICATION_DB_USER}:${NOTIFICATION_DB_PASSWORD}@postgres:5432/notification_db'
+      NOTIFICATION_PORT: '3006'
+      NODE_ENV: 'production'
+    volumes:
+      - './.local/keys/public.pem:/run/keys/public.pem:ro'
+    stop_grace_period: '15s'
+    healthcheck:
+      test:
+        - 'CMD'
+        - 'node'
+        - '-e'
+        - "fetch('http://localhost:3006/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: '10s'
+      timeout: '4s'
+      retries: 10
+      start_period: '30s'
+    depends_on:
+      notification-migrate:
+        condition: 'service_completed_successfully'
+      rabbitmq:
+        condition: 'service_healthy'
+      redis:
+        condition: 'service_healthy'
+    ports:
+      - '${NOTIFICATION_PORT:-3006}:3006'
 volumes:
-  postgres-data:
-
+  postgres-data: {}
+  rabbitmq-data: {}
+  gateway-config: {}
 networks:
-  auction-network:
-    driver: bridge
+  default:
+    driver: 'bridge'

@@ -1,0 +1,124 @@
+services:
+  db-bootstrap:
+    environment:
+      ENABLE_SHADOW_DATABASES: 'true'
+  postgres:
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+  redis:
+    ports:
+      - '127.0.0.1:${REDIS_PORT:-6379}:6379'
+  rabbitmq:
+    ports:
+      - '127.0.0.1:${RABBITMQ_PORT:-5672}:5672'
+      - '127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672'
+  auth-service:
+    build:
+      context: '.'
+      target: 'development'
+      args:
+        SERVICE_NAME: 'auth'
+    environment:
+      WATCH_POLLING: '${WATCH_POLLING:-false}'
+      NODE_ENV: 'development'
+      PLATFORM_DEMO_ENABLED: 'true'
+    volumes:
+      - './apps/auth-service:/app/apps/auth-service'
+      - './libs:/app/libs:ro'
+      - './contracts:/app/contracts:ro'
+      - './scripts:/app/scripts:ro'
+      - './tsconfig.json:/app/tsconfig.json:ro'
+      - './nest-cli.json:/app/nest-cli.json:ro'
+    ports:
+      - '127.0.0.1:${AUTH_PORT:-3001}:3001'
+  product-service:
+    build:
+      context: '.'
+      target: 'development'
+      args:
+        SERVICE_NAME: 'product'
+    environment:
+      WATCH_POLLING: '${WATCH_POLLING:-false}'
+      NODE_ENV: 'development'
+      PLATFORM_DEMO_ENABLED: 'true'
+    volumes:
+      - './apps/product-service:/app/apps/product-service'
+      - './libs:/app/libs:ro'
+      - './contracts:/app/contracts:ro'
+      - './scripts:/app/scripts:ro'
+      - './tsconfig.json:/app/tsconfig.json:ro'
+      - './nest-cli.json:/app/nest-cli.json:ro'
+    ports:
+      - '127.0.0.1:${PRODUCT_PORT:-3002}:3002'
+  auction-service:
+    build:
+      context: '.'
+      target: 'development'
+      args:
+        SERVICE_NAME: 'auction'
+    environment:
+      WATCH_POLLING: '${WATCH_POLLING:-false}'
+      NODE_ENV: 'development'
+      PLATFORM_DEMO_ENABLED: 'true'
+    volumes:
+      - './apps/auction-service:/app/apps/auction-service'
+      - './libs:/app/libs:ro'
+      - './contracts:/app/contracts:ro'
+      - './scripts:/app/scripts:ro'
+      - './tsconfig.json:/app/tsconfig.json:ro'
+      - './nest-cli.json:/app/nest-cli.json:ro'
+  order-service:
+    build:
+      context: '.'
+      target: 'development'
+      args:
+        SERVICE_NAME: 'order'
+    environment:
+      WATCH_POLLING: '${WATCH_POLLING:-false}'
+      NODE_ENV: 'development'
+      PLATFORM_DEMO_ENABLED: 'true'
+    volumes:
+      - './apps/order-service:/app/apps/order-service'
+      - './libs:/app/libs:ro'
+      - './contracts:/app/contracts:ro'
+      - './scripts:/app/scripts:ro'
+      - './tsconfig.json:/app/tsconfig.json:ro'
+      - './nest-cli.json:/app/nest-cli.json:ro'
+    ports:
+      - '127.0.0.1:${ORDER_PORT:-3004}:3004'
+  payment-service:
+    build:
+      context: '.'
+      target: 'development'
+      args:
+        SERVICE_NAME: 'payment'
+    environment:
+      WATCH_POLLING: '${WATCH_POLLING:-false}'
+      NODE_ENV: 'development'
+      PLATFORM_DEMO_ENABLED: 'true'
+    volumes:
+      - './apps/payment-service:/app/apps/payment-service'
+      - './libs:/app/libs:ro'
+      - './contracts:/app/contracts:ro'
+      - './scripts:/app/scripts:ro'
+      - './tsconfig.json:/app/tsconfig.json:ro'
+      - './nest-cli.json:/app/nest-cli.json:ro'
+    ports:
+      - '127.0.0.1:${PAYMENT_PORT:-3005}:3005'
+  notification-service:
+    build:
+      context: '.'
+      target: 'development'
+      args:
+        SERVICE_NAME: 'notification'
+    environment:
+      WATCH_POLLING: '${WATCH_POLLING:-false}'
+      NODE_ENV: 'development'
+      PLATFORM_DEMO_ENABLED: 'true'
+    volumes:
+      - './apps/notification-service:/app/apps/notification-service'
+      - './libs:/app/libs:ro'
+      - './contracts:/app/contracts:ro'
+      - './scripts:/app/scripts:ro'
+      - './tsconfig.json:/app/tsconfig.json:ro'
+      - './nest-cli.json:/app/nest-cli.json:ro'
