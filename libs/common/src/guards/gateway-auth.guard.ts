@@ -1,16 +1,15 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import { HEADERS } from '../constants/headers.constant.js';
-
+import {
+  Injectable,
+  type CanActivate,
+  type ExecutionContext,
+} from '@nestjs/common';
+import { AccessTokens } from '../platform/security.js';
 @Injectable()
 export class GatewayAuthGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest();
-    const userId = request.headers[HEADERS.USER_ID];
-
-    if (!userId) {
-      throw new UnauthorizedException('Missing authenticated user header from API Gateway');
-    }
-
+  constructor(private readonly tokens: AccessTokens) {}
+  canActivate(ctx: ExecutionContext) {
+    const req = ctx.switchToHttp().getRequest();
+    req.principal = this.tokens.authorize(req.headers.authorization);
     return true;
   }
 }

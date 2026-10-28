@@ -1,0 +1,116 @@
+{
+  "type": "object",
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventName": {
+      "const": "bid.placed"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "producer": {
+      "const": "auction"
+    },
+    "aggregateId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "aggregateVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "correlationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "auctionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "productId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "productTitle": {
+          "type": "string"
+        },
+        "newBidderId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "previousBidderId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currentPrice": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,15})$",
+          "examples": [
+            "100000"
+          ]
+        },
+        "currency": {
+          "const": "VND"
+        },
+        "bidTime": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "auctionId",
+        "productId",
+        "productTitle",
+        "newBidderId",
+        "previousBidderId",
+        "currentPrice",
+        "currency",
+        "bidTime"
+      ],
+      "additionalProperties": false
+    },
+    "demo": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "runId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "eventId",
+    "eventName",
+    "schemaVersion",
+    "occurredAt",
+    "producer",
+    "aggregateId",
+    "aggregateVersion",
+    "correlationId",
+    "payload"
+  ],
+  "additionalProperties": false,
+  "$id": "https://auction.local/events/bid.placed.v1"
+}

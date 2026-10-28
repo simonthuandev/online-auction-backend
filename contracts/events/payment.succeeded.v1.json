@@ -1,0 +1,113 @@
+{
+  "type": "object",
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventName": {
+      "const": "payment.succeeded"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "producer": {
+      "const": "payment"
+    },
+    "aggregateId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "aggregateVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "correlationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "paymentId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "orderId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "amount": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]{0,15})$",
+          "examples": [
+            "100000"
+          ]
+        },
+        "currency": {
+          "const": "VND"
+        },
+        "paymentMethod": {
+          "description": "COD after confirmed cash collection, or VNPAY after verified provider payment. Selecting a method alone is not payment success.",
+          "enum": [
+            "COD",
+            "VNPAY"
+          ]
+        },
+        "transactionId": {
+          "type": "string",
+          "description": "VNPay transaction reference, or an internal cash receipt reference for COD."
+        },
+        "paidAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "paymentId",
+        "orderId",
+        "userId",
+        "amount",
+        "currency",
+        "paymentMethod",
+        "transactionId",
+        "paidAt"
+      ],
+      "additionalProperties": false
+    },
+    "demo": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "runId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "eventId",
+    "eventName",
+    "schemaVersion",
+    "occurredAt",
+    "producer",
+    "aggregateId",
+    "aggregateVersion",
+    "correlationId",
+    "payload"
+  ],
+  "additionalProperties": false,
+  "$id": "https://auction.local/events/payment.succeeded.v1"
+}

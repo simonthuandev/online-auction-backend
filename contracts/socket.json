@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "path": "/socket.io",
+  "transports": [
+    "websocket"
+  ],
+  "authentication": {
+    "location": "handshake.auth.token",
+    "tokenType": "RS256 access",
+    "onExpiry": "disconnect"
+  },
+  "namespaces": {
+    "/auctions": {
+      "service": "auction",
+      "room": "auction:{auctionId}",
+      "clientEvents": {
+        "auction:subscribe": {
+          "type": "object",
+          "properties": {
+            "auctionId": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "auctionId"
+          ],
+          "additionalProperties": false
+        },
+        "auction:unsubscribe": {
+          "type": "object",
+          "properties": {
+            "auctionId": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "auctionId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "ack": {
+        "success": {
+          "ok": true,
+          "auctionId": "UUID"
+        },
+        "error": {
+          "ok": false,
+          "code": "INVALID_AUCTION_ID"
+        }
+      },
+      "serverEvents": {
+        "auction:bid_updated": {
+          "payloadRef": "events/bid.placed.v1.json#/properties/payload",
+          "additionalFields": {
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "auction:status_changed": {
+          "payloadRefs": [
+            "events/auction.started.v1.json#/properties/payload",
+            "events/auction.ended.v1.json#/properties/payload"
+          ],
+          "additionalFields": {
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "status": {
+              "enum": [
+                "ACTIVE",
+                "ENDED"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "/notifications": {
+      "service": "notification",
+      "room": "user:{verified JWT sub}",
+      "clientEvents": {},
+      "serverEvents": {
+        "notification:new": {
+          "payloadRef": "openapi/notification.json#/components/schemas/Notification"
+        }
+      },
+      "note": "Demo notification has metadata.demoRunId and is not persisted as a business Notification."
+    }
+  }
+}
