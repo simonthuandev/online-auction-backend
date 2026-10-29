@@ -2,7 +2,7 @@
 
 ## Phân công và giới hạn
 
-Lead: Auth/Auction; thành viên 2: Product/Order; thành viên 3: Payment/Notification. Nền tảng cung cấp kết nối, xác thực, schema, migration, route, validation, outbox, dedupe, retry/DLQ và socket facade. Chưa có nghiệp vụ đấu giá, reservation thật, sinh đơn, thanh toán hay lưu thông báo thật. Các internal adapter demo chỉ trả fixture và ghi PlatformProbe.
+**Thuận**: Auth/Auction; **Tuấn**: Product/Notification; **A Thi**: Payment/Order. Nền tảng cung cấp kết nối, xác thực, schema, migration, route, validation, outbox, dedupe, retry/DLQ và socket facade. Chưa có nghiệp vụ đấu giá, reservation thật, sinh đơn, thanh toán hay lưu thông báo thật. Các internal adapter demo chỉ trả fixture và ghi PlatformProbe.
 
 Mỗi người được tổ chức domain/application/repository theo cách phù hợp trong service mình. Điểm nối vào hạ tầng là `src/service-handlers.ts`; không cần sửa gateway hoặc tạo connection Redis/RabbitMQ mới. Không khai báo controller trùng route contract: platform HTTP dispatcher đã sở hữu route và validation. Auth controller là phần đã triển khai riêng.
 

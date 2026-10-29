@@ -167,7 +167,7 @@ Socket server nằm trong Auction và Notification, **không có container socke
 
 ## Hợp đồng và chia việc
 
-- [Hướng dẫn bàn giao](docs/platform-handover.md)
+- [Hướng dẫn nhận việc](docs/platform-handover.md)
 - [Thiết kế dữ liệu](docs/data-model.md)
 - [Sự kiện và Socket.IO](docs/events-and-sockets.md)
 - [Auth](apps/auth-service/README.md), [Product](apps/product-service/README.md), [Auction](apps/auction-service/README.md), [Order](apps/order-service/README.md), [Payment](apps/payment-service/README.md), [Notification](apps/notification-service/README.md)
