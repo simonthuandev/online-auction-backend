@@ -3,11 +3,11 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { describe, expect, it } from 'vitest';
 import { loadEnv } from '../scripts/platform/env.mjs';
+import { integrationEnabled } from './support/pg-database.js';
 
-const integration = process.env.PLATFORM_INTEGRATION === 'true';
-if (integration) loadEnv();
+if (integrationEnabled) loadEnv();
 
-describe.skipIf(!integration)('Payment COD migration', () => {
+describe.skipIf(!integrationEnabled)('Payment COD migration', () => {
   it('preserves existing attempts, statuses and the pending unique index', async () => {
     const db = new pg.Client({
       connectionString: process.env.PAYMENT_DATABASE_URL,
