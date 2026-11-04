@@ -3,11 +3,9 @@ on:
   push:
     branches:
       - master
-      - dev
   pull_request:
     branches:
       - master
-      - dev
 
 jobs:
   checks:
@@ -28,4 +26,3 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build:all
-
