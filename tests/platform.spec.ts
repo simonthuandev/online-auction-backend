@@ -23,6 +23,11 @@ const keys = generateKeyPairSync('rsa', {
   publicKeyEncoding: { type: 'spki', format: 'pem' },
   privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
 });
+import {
+  isImplementedRoute,
+  isStubRoute,
+} from '../scripts/platform/catalog.mjs';
+
 const path = mkdtempSync(join(tmpdir(), 'auction-keys-'));
 writeFileSync(join(path, 'public.pem'), keys.publicKey);
 process.env.JWT_PUBLIC_KEY_PATH = join(path, 'public.pem');
@@ -138,6 +143,9 @@ describe('contracts', () => {
       for (const ops of Object.values(doc.paths))
         for (const op of Object.values(ops)) {
           expect(op['x-auth']).toMatch(/^(public|internal|bearer)$/);
+          expect(op['x-implementation']).toMatch(
+            /^(completed|planned|demo|implemented)$/,
+          );
           expect(op.responses['501']).toBeDefined();
           if (op.requestBody)
             expect(() =>
@@ -188,5 +196,22 @@ describe('internal HTTP failure policy', () => {
       ),
     ).rejects.toBeInstanceOf(InternalResponseError);
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('route classification helper', () => {
+  it('identifies completed and implemented routes as real handlers', () => {
+    expect(isImplementedRoute({ 'x-implementation': 'completed' })).toBe(true);
+    expect(isImplementedRoute({ 'x-implementation': 'implemented' })).toBe(true);
+    expect(isStubRoute({ 'x-implementation': 'completed' })).toBe(false);
+    expect(isStubRoute({ 'x-implementation': 'implemented' })).toBe(false);
+  });
+  it('identifies planned, demo, and missing as stubs', () => {
+    expect(isImplementedRoute({ 'x-implementation': 'planned' })).toBe(false);
+    expect(isImplementedRoute({ 'x-implementation': 'demo' })).toBe(false);
+    expect(isImplementedRoute({})).toBe(false);
+    expect(isStubRoute({ 'x-implementation': 'planned' })).toBe(true);
+    expect(isStubRoute({ 'x-implementation': 'demo' })).toBe(true);
+    expect(isStubRoute({})).toBe(true);
   });
 });
