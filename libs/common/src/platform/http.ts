@@ -13,7 +13,7 @@ import { PLATFORM_DB, type Database } from './database.js';
 import { document, validator, type IntegrationEvent } from './contracts.js';
 import { PlatformRedis } from './redis.js';
 import { RmqService } from '../rmq/rmq.service.js';
-import { InternalHttp } from './internal-http.js';
+import { InternalHttp, InternalResponseError } from './internal-http.js';
 import { HttpHandlers } from './handlers.js';
 import { enqueueEvent } from './messaging.js';
 export interface AuthRequest extends Request {
@@ -266,20 +266,20 @@ export function registerPlatformHttp(app: INestApplication, service: string) {
           const result =
             service === 'product'
               ? {
-                  auctionId: req.body.auctionId,
-                  productId: req.params.id,
-                  sellerId: req.body.sellerId,
-                  productTitle: 'Demo product',
-                  productThumbnail: null,
-                }
+                auctionId: req.body.auctionId,
+                productId: req.params.id,
+                sellerId: req.body.sellerId,
+                productTitle: 'Demo product',
+                productThumbnail: null,
+              }
               : {
-                  orderId: req.params.id,
-                  buyerId: '10000000-0000-4000-8000-000000000003',
-                  sellerId: '10000000-0000-4000-8000-000000000002',
-                  amount: '100000',
-                  currency: 'VND',
-                  status: 'PENDING_PAYMENT',
-                };
+                orderId: req.params.id,
+                buyerId: '10000000-0000-4000-8000-000000000003',
+                sellerId: '10000000-0000-4000-8000-000000000002',
+                amount: '100000',
+                currency: 'VND',
+                status: 'PENDING_PAYMENT',
+              };
           await db.execute(
             'INSERT INTO "PlatformProbe" (id,"runId",kind,data) VALUES ($1,$2,$3,$4::jsonb) ON CONFLICT ("runId",kind) DO NOTHING',
             randomUUID(),
@@ -309,20 +309,48 @@ export function registerPlatformHttp(app: INestApplication, service: string) {
         throw new HttpException('Invalid demo request', 400);
       let data: unknown;
       if (kind === 'redis') data = await redis.probe(runId);
-      else if (kind === 'rest' && service === 'auction')
-        data = await http.reserveProduct(
-          '20000000-0000-4000-8000-000000000001',
-          {
-            auctionId: runId,
-            sellerId: '10000000-0000-4000-8000-000000000002',
-          },
-          runId,
-        );
-      else if (kind === 'rest' && service === 'payment')
-        data = await http.paymentContext(
-          '30000000-0000-4000-8000-000000000001',
-          runId,
-        );
+      else if (kind === 'rest' && service === 'auction') {
+        try {
+          data = await http.reserveProduct(
+            '20000000-0000-4000-8000-000000000001',
+            {
+              auctionId: runId,
+              sellerId: '10000000-0000-4000-8000-000000000002',
+            },
+            runId,
+          );
+        } catch (err) {
+
+          // Check status code from 400 to 499 to return {returnable: true, status: err.status} 
+          if (
+            err instanceof InternalResponseError &&
+            err.status >= 400 &&
+            err.status < 500
+          ) {
+            data = { reachable: true, status: err.status };
+          } else {
+            throw err;
+          }
+        }
+      } else if (kind === 'rest' && service === 'payment') {
+        try {
+          data = await http.paymentContext(
+            '30000000-0000-4000-8000-000000000001',
+            runId,
+          );
+        } catch (err) {
+          // Check status code from 400 to 499 to return {returnable: true, status: err.status}
+          if (
+            err instanceof InternalResponseError &&
+            err.status >= 400 &&
+            err.status < 500
+          ) {
+            data = { reachable: true, status: err.status };
+          } else {
+            throw err;
+          }
+        }
+      }
       else if (kind === 'fault') {
         if (
           ![
