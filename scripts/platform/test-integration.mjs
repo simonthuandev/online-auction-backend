@@ -41,18 +41,25 @@ if (missingDatabaseUrls.length > 0) {
   );
   process.exitCode = 1;
 } else {
-  const specs = await findIntegrationSpecs(join(root, 'tests'));
+  const targetDirs = ['tests', 'apps'].map((dir) => join(root, dir));
+  const specsNested = await Promise.all(targetDirs.map(findIntegrationSpecs));
+  const specs = specsNested.flat();
   if (specs.length === 0) {
     console.error(
-      'No tests matching *.integration.spec.ts were found in tests/.',
+      'No tests matching *.integration.spec.ts were found in tests/ or apps/.',
     );
     process.exitCode = 1;
   } else {
-    const vitest = spawn(process.execPath, [vitestCli, 'run', ...specs], {
-      cwd: root,
-      env: process.env,
-      stdio: 'inherit',
-    });
+    const userArgs = process.argv.slice(2);
+    const vitest = spawn(
+      process.execPath,
+      [vitestCli, 'run', ...specs, ...userArgs],
+      {
+        cwd: root,
+        env: process.env,
+        stdio: 'inherit',
+      },
+    );
 
     vitest.on('error', (error) => {
       console.error('Unable to start Vitest integration tests:', error);
