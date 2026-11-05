@@ -8,7 +8,7 @@ import pg from 'pg';
 import { Ajv } from 'ajv';
 import formats from 'ajv-formats';
 import { loadEnv, services } from './env.mjs';
-import { documents } from './catalog.mjs';
+import { documents, isImplementedRoute } from './catalog.mjs';
 loadEnv();
 const report = [];
 const base = `http://localhost:${process.env.API_GATEWAY_PORT || 8080}`;
@@ -164,7 +164,7 @@ try {
           for (const [method, op] of Object.entries(ops)) {
             if (
               op['x-auth'] === 'internal' ||
-              op['x-implementation'] === 'completed'
+              isImplementedRoute(op)
             )
               continue;
             const who = op['x-roles']?.includes('ADMIN')
@@ -202,6 +202,8 @@ try {
         authorization: 'Bearer ' + tokens.bidder.accessToken,
         'idempotency-key': randomUUID(),
       };
+      const paymentDoc = documents().find((d) => d['x-service'] === 'payment');
+      const paymentOp = paymentDoc?.paths['/api/payments']?.post;
       for (const paymentMethod of ['COD', 'VNPAY']) {
         const r = await request(
           base + '/api/payments',
@@ -212,11 +214,14 @@ try {
           },
           paymentHeaders,
         );
-        assert.equal(
-          r.status,
-          501,
-          `${paymentMethod}: ${JSON.stringify(r.data)}`,
-        );
+        // Chỉ assert 501 nếu route payments chưa được implement
+        if (!isImplementedRoute(paymentOp)) {
+          assert.equal(
+            r.status,
+            501,
+            `${paymentMethod}: ${JSON.stringify(r.data)}`,
+          );
+        }
       }
       assert.equal(
         (
@@ -248,9 +253,9 @@ try {
         (
           await request(
             base +
-              '/internal/products/' +
-              randomUUID() +
-              '/auction-reservation',
+            '/internal/products/' +
+            randomUUID() +
+            '/auction-reservation',
             'PUT',
             {},
           )
@@ -286,9 +291,9 @@ try {
         (
           await request(
             direct('order') +
-              '/internal/orders/' +
-              randomUUID() +
-              '/payment-context',
+            '/internal/orders/' +
+            randomUUID() +
+            '/payment-context',
           )
         ).status,
         401,
@@ -301,7 +306,7 @@ try {
       try {
         await assert.rejects(() => client.connect());
       } finally {
-        await client.end().catch(() => {});
+        await client.end().catch(() => { });
       }
     });
     const bidUser = '10000000-0000-4000-8000-000000000003';

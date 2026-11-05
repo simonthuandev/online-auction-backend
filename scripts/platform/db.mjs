@@ -2,6 +2,11 @@ import { spawnSync } from 'node:child_process';
 import { loadEnv, services } from './env.mjs';
 loadEnv();
 const [action, target = 'all', name] = process.argv.slice(2);
+const prismaBin =
+  process.platform === 'win32'
+    ? 'node_modules\\.bin\\prisma.cmd'
+    : 'node_modules/.bin/prisma';
+const isWin = process.platform === 'win32';
 for (const s of target === 'all'
   ? services
   : [target.replace(/-service$/, '')]) {
@@ -23,7 +28,7 @@ for (const s of target === 'all'
       ),
     );
     const result = spawnSync(
-      'node_modules/.bin/prisma',
+      prismaBin,
       [
         'migrate',
         'dev',
@@ -33,15 +38,15 @@ for (const s of target === 'all'
         '--name',
         name || 'update',
       ],
-      { stdio: 'inherit', env: process.env },
+      { stdio: 'inherit', env: process.env, shell: isWin },
     );
     const { unlinkSync } = await import('node:fs');
     unlinkSync(temporary);
     if (result.status !== 0) process.exit(result.status || 1);
     const generated = spawnSync(
-      'node_modules/.bin/prisma',
+      prismaBin,
       ['generate', '--schema', schema],
-      { stdio: 'inherit', env: process.env },
+      { stdio: 'inherit', env: process.env, shell: isWin },
     );
     if (generated.status !== 0) process.exit(generated.status || 1);
     continue;
@@ -55,9 +60,9 @@ for (const s of target === 'all'
           ? ['migrate', 'dev', '--name', name || 'update']
           : ['validate'];
   const result = spawnSync(
-    'node_modules/.bin/prisma',
+    prismaBin,
     [...args, '--schema', schema],
-    { stdio: 'inherit', env: process.env },
+    { stdio: 'inherit', env: process.env, shell: isWin },
   );
   if (result.status !== 0) process.exit(result.status || 1);
 }
