@@ -114,4 +114,4 @@ export function setup(envFile = process.env.PLATFORM_ENV_FILE || '.env') {
     `Development config ready (${envFile}); existing values and database volumes preserved. Keys: .local/keys`,
   );
 }
-if (process.argv[1]?.endsWith('/setup.mjs')) setup();
+if (/[\\/]setup\.mjs$/.test(process.argv[1] || '')) setup();

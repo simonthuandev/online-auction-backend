@@ -35,17 +35,17 @@ export function gateway(mode = 'docker', settings = process.env) {
           input_query_strings: ['*'],
           ...(op['x-auth'] === 'bearer'
             ? {
-                extra_config: {
-                  'auth/validator': {
-                    alg: 'RS256',
-                    disable_jwk_security: true,
-                    jwk_local_path: '/etc/krakend/keys/jwk.json',
-                    issuer: settings.JWT_ISSUER || 'online-auction',
-                    audience: [settings.JWT_AUDIENCE || 'online-auction-api'],
-                    cache: false,
-                  },
+              extra_config: {
+                'auth/validator': {
+                  alg: 'RS256',
+                  disable_jwk_security: true,
+                  jwk_local_path: '/etc/krakend/keys/jwk.json',
+                  issuer: settings.JWT_ISSUER || 'online-auction',
+                  audience: [settings.JWT_AUDIENCE || 'online-auction-api'],
+                  cache: false,
                 },
-              }
+              },
+            }
             : {}),
           backend: [
             {
@@ -85,3 +85,15 @@ export function gateway(mode = 'docker', settings = process.env) {
     endpoints,
   };
 }
+
+export function isImplementedRoute(op) {
+  return (
+    op?.['x-implementation'] === 'completed' ||
+    op?.['x-implementation'] === 'implemented'
+  );
+}
+
+export function isStubRoute(op) {
+  return !isImplementedRoute(op);
+}
+

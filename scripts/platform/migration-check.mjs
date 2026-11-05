@@ -24,9 +24,14 @@ const run = (args) => {
   url.username = settings.user;
   url.password = settings.password;
   url.pathname = '/' + database;
-  const r = spawnSync('node_modules/.bin/prisma', args, {
+  const prismaBin =
+    process.platform === 'win32'
+      ? 'node_modules\\.bin\\prisma.cmd'
+      : 'node_modules/.bin/prisma';
+  const r = spawnSync(prismaBin, args, {
     encoding: 'utf8',
     env: { ...process.env, AUTH_DATABASE_URL: url.toString() },
+    shell: process.platform === 'win32',
   });
   if (r.status !== 0) throw Error(r.stderr || r.stdout);
 };
