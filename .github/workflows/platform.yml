@@ -2,12 +2,22 @@ name: Platform baseline
 on:
   push:
     branches:
-      - master
       - main
+      - master
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   pull_request:
     branches:
-      - master
       - main
+      - master
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   checks:
