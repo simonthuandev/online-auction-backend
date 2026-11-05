@@ -11,7 +11,7 @@ Mỗi người được tổ chức domain/application/repository theo cách ph�
 Đọc `operationId` từ OpenAPI của service rồi đăng ký trong `ServiceHandlers.onModuleInit()`. Có thể inject application service của bạn để delegate công việc.
 
 ```ts
-this.http.register('product_get__api_products_id', async request => {
+this.http.register('product_get__api_products_id', async (request) => {
   // request.params.id đã validate UUID; request.principal có ở route protected.
   // Phân trang đã validate nhưng query vẫn là string; chuyển kiểu khi sử dụng.
   return this.products.findById(String(request.params.id));
@@ -44,8 +44,13 @@ Consumer có thể trả về một callback `return () => realtime.publishNotif
 
 ```ts
 const result = await withIdempotency(
-  db, actorId, operationId, idempotencyKey, body, 202,
-  async tx => {
+  db,
+  actorId,
+  operationId,
+  idempotencyKey,
+  body,
+  202,
+  async (tx) => {
     // Ghi business entity bằng chính tx này.
     await enqueueEvent(tx, event); // eventId/version ổn định, payload theo JSON Schema.
     return response;
@@ -61,6 +66,17 @@ Aggregate version phải tăng nguyên tử theo aggregate. Outbox gửi lần l
 ## Realtime
 
 Inject `Realtime`, dùng `publishBidUpdate`, `publishAuctionStatus`, `publishNotification` sau commit. Không nhận userId tùy ý từ client để join notification room. Không coi socket là kho lịch sử; REST đọc database để phục hồi sau reconnect.
+
+## Viết test nghiệp vụ
+
+Chia test thành hai tầng; đặt test tại `tests/` hoặc thư mục service tương ứng:
+
+1. **Unit/business spec** (`*.spec.ts`): không cần Docker, database hay broker; mock dependency và kiểm tra quy tắc nghiệp vụ, quyền sở hữu, lỗi và kết quả. `npm test` chạy tầng này trong CI. Ví dụ: `tests/platform.spec.ts`.
+2. **Integration spec** (`*.integration.spec.ts`): chạy trên stack integration local đã migrate, khởi động bằng Compose project riêng và dùng env file riêng (khuyến nghị `.env.integration`). Chạy `npm run test:integration`; script nạp env từ `.env` hoặc `PLATFORM_ENV_FILE`, đặt `PLATFORM_INTEGRATION=true` và chỉ chạy các file theo pattern này. Ví dụ PowerShell: `$env:PLATFORM_ENV_FILE='.env.integration'; npm run test:integration`; macOS/Linux: `PLATFORM_ENV_FILE=.env.integration npm run test:integration`. Ví dụ spec: `tests/idempotency.integration.spec.ts`.
+
+Integration test luôn dùng database của service sở hữu; không truy cập database service khác. Tạo `runId` riêng cho mỗi test, truyền nó vào mọi fixture có thể gắn mã chạy (ví dụ `PlatformProbe.runId`, `IdempotencyRecord.actorId` và tên consumer/event), rồi gọi `cleanupRunData(pool, runId)` trong `afterAll`/`finally`. Helper ở `tests/support/pg-database.ts` bỏ qua các bảng platform không tồn tại trong database service đó; lỗi dọn dữ liệu được báo rõ, không bị nuốt. Migration test có thể dùng schema tạm và rollback như `tests/payment-migration.integration.spec.ts`.
+
+Giữ hậu tố `.integration.spec.ts` cho test cần stack thật; các test không cần stack dùng `.spec.ts`. Vì integration spec cũng khớp `npm test`, chúng phải dùng `integrationEnabled` và `describe.skipIf(!integrationEnabled)` để CI mặc định skip. Không reset volume hoặc xóa dữ liệu không thuộc `runId`.
 
 ## Mở rộng database/hợp đồng
 

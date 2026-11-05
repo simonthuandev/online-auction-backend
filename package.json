@@ -19,6 +19,7 @@
     "start:prod": "node dist/apps/auth-service/main.js",
     "lint": "oxlint --type-aware apps/ libs/",
     "test": "vitest run",
+    "test:integration": "node scripts/platform/test-integration.mjs",
     "prisma:generate:all": "node scripts/platform/db.mjs generate all",
     "setup:dev": "node scripts/platform/setup.mjs",
     "contracts:generate": "node scripts/platform/generate-contracts.mjs",
