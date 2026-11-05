@@ -20,11 +20,46 @@ export interface AuthRequest extends Request {
   principal?: Principal;
   requestId: string;
 }
+function extractDbError(error: unknown): { prismaCode?: string; pgCode?: string } {
+  if (typeof error !== 'object' || error === null) return {};
+  const e = error as Record<string, unknown>;
+  const rawCode =
+    typeof e.code === 'string'
+      ? e.code
+      : typeof e.code === 'number'
+        ? String(e.code)
+        : undefined;
+  const meta = e.meta as Record<string, unknown> | undefined;
+  const rawMetaCode =
+    typeof meta?.code === 'string'
+      ? meta.code
+      : typeof meta?.code === 'number'
+        ? String(meta.code)
+        : undefined;
+
+  const prismaCode = rawCode?.startsWith('P') ? rawCode : undefined;
+  const pgCode = rawMetaCode || (!rawCode?.startsWith('P') ? rawCode : undefined);
+
+  if (!prismaCode && !pgCode && e.cause) {
+    return extractDbError(e.cause);
+  }
+  if (!prismaCode && !pgCode && e.originalError) {
+    return extractDbError(e.originalError);
+  }
+
+  return { prismaCode, pgCode };
+}
 export function sendError(
   error: unknown,
   request: Request,
   response: Response,
 ) {
+  const { prismaCode, pgCode } = extractDbError(error);
+  const isFk = prismaCode === 'P2003' || pgCode === '23503';
+  const isUnique = prismaCode === 'P2002' || pgCode === '23505';
+  const isCheck = pgCode === '23514';
+  const isNotFound = prismaCode === 'P2025';
+
   let status =
     error instanceof HttpException
       ? error.getStatus()
@@ -33,7 +68,13 @@ export function sendError(
         : (error as { status?: number })?.status === 413
           ? 413
           : 500;
-  if ((error as { code?: string })?.code === 'P2002') status = 409;
+
+  if (status === 500) {
+    if (isUnique || isFk) status = 409;
+    else if (isCheck) status = 400;
+    else if (isNotFound) status = 404;
+  }
+
   const code =
     (
       {
@@ -53,12 +94,20 @@ export function sendError(
     code,
     message:
       typeof value === 'object' && value && 'message' in value
-        ? value.message
+        ? (value as { message: unknown }).message
         : typeof value === 'string'
           ? value
-          : status === 409
-            ? 'Resource already exists'
-            : 'Internal server error',
+          : isFk
+            ? 'Resource conflict'
+            : status === 409
+              ? 'Resource already exists'
+              : status === 404
+                ? 'Resource not found'
+                : status === 400
+                  ? 'Invalid request'
+                  : status === 413
+                    ? 'Payload too large'
+                    : 'Internal server error',
     requestId: (request as AuthRequest).requestId || randomUUID(),
   });
 }

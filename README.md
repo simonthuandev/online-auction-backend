@@ -185,6 +185,17 @@ OpenAPI JSON trong `contracts/openapi/` là nguồn route/request/response. JSON
 - Lỗi thiếu Buildx: cài Docker Buildx chính thức trước khi build; cache mounts yêu cầu BuildKit.
 - Cổng đang dùng: dừng đúng chế độ cũ hoặc đổi cổng trong `.env`; không reset volume để sửa xung đột cổng.
 
+### Ánh xạ lỗi Database sang HTTP
+
+Platform tự động bắt các lỗi ràng buộc Database (từ Prisma ORM, raw SQL `tx.execute` và pg driver) và chuyển đổi thành HTTP status cùng Error envelope chuẩn, không làm lộ chi tiết constraint hoặc câu lệnh SQL nội bộ:
+
+| Mã lỗi Database | Nguồn phát sinh | HTTP Status | Mã Error Envelope | Thông điệp trả về |
+|---|---|---|---|---|
+| `P2002` / `23505` | Unique constraint (unique index, partial unique index) | `409` | `CONFLICT` | `Resource already exists` |
+| `P2003` / `23503` | Foreign key constraint (ràng buộc khóa ngoại) | `409` | `CONFLICT` | `Resource conflict` |
+| `23514` | CHECK constraint (ràng buộc giá trị hợp lệ) | `400` | `INVALID_REQUEST` | `Invalid request` |
+| `P2025` | Record not found (bản ghi cập nhật/xóa không tồn tại) | `404` | `NOT_FOUND` | `Resource not found` |
+
 ```bash
 npm run rmq:inspect
 npm run rmq:replay -- queue.order.events 1
