@@ -69,7 +69,7 @@ Host entrypoint dùng role riêng từ `ORDER_DB_USER/PASSWORD`; không copy sec
 
 ## Checklist nghiệp vụ cần làm
 
-- [ ] Tạo Order từ auction.ended có winner; giữ auctionId unique.
+- [x] Tạo Order từ auction.ended có winner; giữ auctionId unique.
 - [ ] Chỉ buyer/seller của đơn được đọc.
 - [ ] payment.succeeded phải khớp buyer, amount, currency trước chuyển PAID.
 - [ ] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
