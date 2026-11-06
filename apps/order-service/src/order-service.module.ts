@@ -3,8 +3,11 @@ import { ServiceHandlers } from './service-handlers.js';
 import { PlatformModule, PLATFORM_DB, type Transaction } from '@app/common';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { PrismaService } from './prisma/prisma.service.js';
+import { OrderConsumer } from './order/order.consumer.js';
+
 @Module({
-  providers: [ServiceHandlers],
+  providers: [ServiceHandlers, OrderConsumer],
+  exports: [OrderConsumer],
   imports: [
     PlatformModule.register(PrismaModule, {
       provide: PLATFORM_DB,
@@ -27,4 +30,4 @@ import { PrismaService } from './prisma/prisma.service.js';
     }),
   ],
 })
-export class OrderServiceModule {}
+export class OrderServiceModule { }
