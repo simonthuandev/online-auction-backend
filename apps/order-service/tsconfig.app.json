@@ -7,8 +7,7 @@
     "tsBuildInfoFile": "../../dist/cache/order.tsbuildinfo"
   },
   "include": [
-    "src/**/*",
-    "../../tests/order.consumer.spec.ts"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules",
