@@ -25,10 +25,10 @@ Nguồn chính: [OpenAPI](../../contracts/openapi/product.json). Dev cung cấp 
 |---|---|---|---|
 | `GET /api/product/health` | `product_get__api_product_health` | public  | completed |
 | `GET /internal/product/dependencies` | `product_get__internal_product_dependencies` | internal  | completed |
-| `GET /api/categories` | `product_get__api_categories` | public  | completed |
-| `POST /api/categories` | `product_post__api_categories` | bearer ADMIN | completed |
-| `PATCH /api/categories/{id}` | `product_patch__api_categories_id` | bearer ADMIN | completed |
-| `DELETE /api/categories/{id}` | `product_delete__api_categories_id` | bearer ADMIN | completed |
+| `GET /api/categories` | `product_get__api_categories` | public  | implemented |
+| `POST /api/categories` | `product_post__api_categories` | bearer ADMIN | implemented |
+| `PATCH /api/categories/{id}` | `product_patch__api_categories_id` | bearer ADMIN | implemented |
+| `DELETE /api/categories/{id}` | `product_delete__api_categories_id` | bearer ADMIN | implemented |
 | `GET /api/products` | `product_get__api_products` | public  | planned |
 | `POST /api/products` | `product_post__api_products` | bearer SELLER | planned |
 | `GET /api/products/{id}` | `product_get__api_products_id` | public  | planned |
@@ -36,7 +36,7 @@ Nguồn chính: [OpenAPI](../../contracts/openapi/product.json). Dev cung cấp 
 | `DELETE /api/products/{id}` | `product_delete__api_products_id` | bearer SELLER | planned |
 | `PUT /internal/products/{id}/auction-reservation` | `product_put__internal_products_id_auction-reservation` | internal  | demo |
 
-Completed là code thật. Planned trả 501 khi chưa đăng ký handler. Demo internal chỉ bật dev/test và ghi PlatformProbe, chưa thay đổi bảng nghiệp vụ. Ownership phải kiểm tra trong handler, không chỉ dựa role.
+Completed/implemented là code thật. Planned trả 501 khi chưa đăng ký handler. Demo internal chỉ bật dev/test và ghi PlatformProbe, chưa thay đổi bảng nghiệp vụ. Ownership phải kiểm tra trong handler, không chỉ dựa role.
 
 ## Điểm viết nghiệp vụ
 

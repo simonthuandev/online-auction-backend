@@ -187,7 +187,7 @@
         "x-backend-path": "/categories",
         "x-auth": "public",
         "x-roles": [],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",
@@ -311,7 +311,7 @@
         "x-roles": [
           "ADMIN"
         ],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "201": {
             "description": "Success",
@@ -423,7 +423,7 @@
         "x-roles": [
           "ADMIN"
         ],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",
@@ -540,7 +540,7 @@
         "x-roles": [
           "ADMIN"
         ],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",
