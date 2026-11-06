@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { OrderConsumer } from '../apps/order-service/src/order/order.consumer.js';
 import {
-    IntegrationEvent,
+    type IntegrationEvent,
     PermanentMessageError,
     type Transaction,
-} from '@app/common';
+} from '../libs/common/src/index.js';
 
 type AuctionEndedEvent = Extract<IntegrationEvent, { eventName: 'auction.ended' }>;
 
