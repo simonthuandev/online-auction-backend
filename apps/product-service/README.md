@@ -25,10 +25,10 @@ Nguồn chính: [OpenAPI](../../contracts/openapi/product.json). Dev cung cấp 
 |---|---|---|---|
 | `GET /api/product/health` | `product_get__api_product_health` | public  | completed |
 | `GET /internal/product/dependencies` | `product_get__internal_product_dependencies` | internal  | completed |
-| `GET /api/categories` | `product_get__api_categories` | public  | planned |
-| `POST /api/categories` | `product_post__api_categories` | bearer ADMIN | planned |
-| `PATCH /api/categories/{id}` | `product_patch__api_categories_id` | bearer ADMIN | planned |
-| `DELETE /api/categories/{id}` | `product_delete__api_categories_id` | bearer ADMIN | planned |
+| `GET /api/categories` | `product_get__api_categories` | public  | implemented |
+| `POST /api/categories` | `product_post__api_categories` | bearer ADMIN | implemented |
+| `PATCH /api/categories/{id}` | `product_patch__api_categories_id` | bearer ADMIN | implemented |
+| `DELETE /api/categories/{id}` | `product_delete__api_categories_id` | bearer ADMIN | implemented |
 | `GET /api/products` | `product_get__api_products` | public  | planned |
 | `POST /api/products` | `product_post__api_products` | bearer SELLER | planned |
 | `GET /api/products/{id}` | `product_get__api_products_id` | public  | planned |
@@ -36,7 +36,7 @@ Nguồn chính: [OpenAPI](../../contracts/openapi/product.json). Dev cung cấp 
 | `DELETE /api/products/{id}` | `product_delete__api_products_id` | bearer SELLER | planned |
 | `PUT /internal/products/{id}/auction-reservation` | `product_put__internal_products_id_auction-reservation` | internal  | demo |
 
-Completed là code thật. Planned trả 501 khi chưa đăng ký handler. Demo internal chỉ bật dev/test và ghi PlatformProbe, chưa thay đổi bảng nghiệp vụ. Ownership phải kiểm tra trong handler, không chỉ dựa role.
+Completed/implemented là code thật. Planned trả 501 khi chưa đăng ký handler. Demo internal chỉ bật dev/test và ghi PlatformProbe, chưa thay đổi bảng nghiệp vụ. Ownership phải kiểm tra trong handler, không chỉ dựa role.
 
 ## Điểm viết nghiệp vụ
 
@@ -53,6 +53,8 @@ this.http.register('<operationId>', async request => {
 ```
 
 Không tạo controller trùng route dispatcher. Có thể tự tổ chức domain/application/repository nội bộ. Consumer phải dùng transaction được truyền vào, không mở transaction riêng để ghi nghiệp vụ.
+
+Category CRUD nằm trong `src/category`: danh sách công khai, phân trang ổn định theo tên và ID; `search` coi `%` và `_` là ký tự thường. Các thao tác ghi yêu cầu ADMIN; tên được trim, tên trùng trả 409, PATCH rỗng trả 400 và category còn product không thể bị xóa.
 
 ## Kết nối sẵn có
 
@@ -76,7 +78,8 @@ Host entrypoint dùng role riêng từ `PRODUCT_DB_USER/PASSWORD`; không copy s
 
 ## Checklist nghiệp vụ cần làm
 
-- [ ] Viết Category/Product CRUD và kiểm tra quyền sở hữu.
+- [x] Viết Category CRUD với phân trang/tìm kiếm và chỉ ADMIN được ghi.
+- [ ] Viết Product CRUD và kiểm tra quyền sở hữu.
 - [ ] Reservation phải cập nhật nguyên tử và idempotent theo auctionId; reset lastAuctionVersion khi giữ sản phẩm cho phiên mới.
 - [ ] Consumer lifecycle kiểm tra reservedAuctionId/version, tránh event cũ tác động phiên mới.
 - [ ] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
