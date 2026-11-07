@@ -4,8 +4,15 @@ import { PlatformModule, PLATFORM_DB, type Transaction } from '@app/common';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { PrismaService } from './prisma/prisma.service.js';
 import { CategoryService } from './category/category.service.js';
+import { ProductService } from './product/product.service.js';
+import { ProductRepository } from './product/product.repository.js';
 @Module({
-  providers: [ServiceHandlers, CategoryService],
+  providers: [
+    ServiceHandlers,
+    CategoryService,
+    ProductService,
+    ProductRepository,
+  ],
   imports: [
     PlatformModule.register(PrismaModule, {
       provide: PLATFORM_DB,
