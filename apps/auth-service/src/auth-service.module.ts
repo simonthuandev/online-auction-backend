@@ -4,6 +4,8 @@ import { PlatformModule, PLATFORM_DB, type Transaction } from '@app/common';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { PrismaService } from './prisma/prisma.service.js';
 import { AuthModule } from './auth/auth.module.js';
+import { UsersModule } from './users/users.module.js';
+
 @Module({
   providers: [ServiceHandlers],
   imports: [
@@ -27,6 +29,7 @@ import { AuthModule } from './auth/auth.module.js';
       }),
     }),
     AuthModule,
+    UsersModule,
   ],
 })
 export class AuthServiceModule {}

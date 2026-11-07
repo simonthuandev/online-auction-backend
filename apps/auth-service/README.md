@@ -29,11 +29,53 @@ Nguồn chính: [OpenAPI](../../contracts/openapi/auth.json). Dev cung cấp `GE
 | `POST /api/auth/login` | `auth_post__api_auth_login` | public  | completed |
 | `POST /api/auth/refresh` | `auth_post__api_auth_refresh` | public  | completed |
 | `POST /api/auth/logout` | `auth_post__api_auth_logout` | public  | completed |
-| `GET /api/auth/me` | `auth_get__api_auth_me` | bearer  | planned |
-| `PATCH /api/auth/me` | `auth_patch__api_auth_me` | bearer  | planned |
+| `GET /api/auth/me` | `auth_get__api_auth_me` | bearer  | implemented |
+| `PATCH /api/auth/me` | `auth_patch__api_auth_me` | bearer  | implemented |
 | `PATCH /api/admin/users/{id}/role` | `auth_patch__api_admin_users_id_role` | bearer ADMIN | planned |
 
-Completed là code thật. Planned trả 501 khi chưa đăng ký handler. Demo internal chỉ bật dev/test và ghi PlatformProbe, chưa thay đổi bảng nghiệp vụ. Ownership phải kiểm tra trong handler, không chỉ dựa role.
+Completed là code thật qua controller. Implemented là handler nghiệp vụ đăng ký qua `src/service-handlers.ts`. Planned trả 501 khi chưa đăng ký handler. Demo internal chỉ bật dev/test và ghi PlatformProbe, chưa thay đổi bảng nghiệp vụ. Ownership phải kiểm tra trong handler, không chỉ dựa role.
+
+### Ví dụ API Profile (`GET/PATCH /api/auth/me`)
+
+**Lấy thông tin cá nhân:**
+```http
+GET /api/auth/me HTTP/1.1
+Authorization: Bearer <accessToken>
+```
+Response 200:
+```json
+{
+  "id": "10000000-0000-4000-8000-000000000003",
+  "email": "bidder@auction.test",
+  "name": "Bidder One",
+  "role": "USER",
+  "avatarUrl": "https://example.com/avatar.png",
+  "isActive": true
+}
+```
+
+**Cập nhật hồ sơ cá nhân:**
+```http
+PATCH /api/auth/me HTTP/1.1
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{
+  "name": "Bidder New Name",
+  "avatarUrl": "https://example.com/new-avatar.png"
+}
+```
+Response 200:
+```json
+{
+  "id": "10000000-0000-4000-8000-000000000003",
+  "email": "bidder@auction.test",
+  "name": "Bidder New Name",
+  "role": "USER",
+  "avatarUrl": "https://example.com/new-avatar.png",
+  "isActive": true
+}
+```
 
 ## Điểm viết nghiệp vụ
 
