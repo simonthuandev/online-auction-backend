@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   BadRequestException,
   UnauthorizedException,
+  ForbiddenException,
+  NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
 import { UsersService } from './users.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
@@ -15,6 +18,7 @@ describe('UsersService (Unit Tests)', () => {
       findUnique: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
+      count: ReturnType<typeof vi.fn>;
     };
   };
 
@@ -33,12 +37,20 @@ describe('UsersService (Unit Tests)', () => {
     updatedAt: new Date('2026-01-02T00:00:00.000Z'),
   };
 
+  const sampleAdmin = {
+    ...sampleDbUser,
+    id: '10000000-0000-4000-8000-000000000009',
+    email: 'admin@auction.test',
+    role: 'ADMIN' as const,
+  };
+
   beforeEach(() => {
     mockPrisma = {
       user: {
         findUnique: vi.fn(),
         update: vi.fn(),
         create: vi.fn(),
+        count: vi.fn(),
       },
     };
     service = new UsersService(mockPrisma as unknown as PrismaService);
@@ -206,8 +218,147 @@ describe('UsersService (Unit Tests)', () => {
     });
   });
 
+  describe('updateUserRole [AUTH-02]', () => {
+    it('successfully updates user role from USER to SELLER', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(sampleDbUser);
+      mockPrisma.user.update.mockResolvedValue({
+        ...sampleDbUser,
+        role: 'SELLER',
+      });
+
+      const result = await service.updateUserRole(
+        sampleAdmin.id,
+        sampleDbUser.id,
+        'SELLER',
+      );
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: sampleDbUser.id },
+        data: { role: 'SELLER' },
+      });
+      expect(result.role).toBe('SELLER');
+      expect((result as Record<string, unknown>).password).toBeUndefined();
+    });
+
+    it('successfully promotes a user to ADMIN', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(sampleDbUser);
+      mockPrisma.user.update.mockResolvedValue({
+        ...sampleDbUser,
+        role: 'ADMIN',
+      });
+
+      const result = await service.updateUserRole(
+        sampleAdmin.id,
+        sampleDbUser.id,
+        'ADMIN',
+      );
+
+      expect(result.role).toBe('ADMIN');
+    });
+
+    it('throws 400 BadRequestException for invalid role', async () => {
+      await expect(
+        service.updateUserRole(
+          sampleAdmin.id,
+          sampleDbUser.id,
+          'SUPERADMIN' as unknown as 'USER',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws 404 NotFoundException if target user does not exist', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updateUserRole(
+          sampleAdmin.id,
+          'non-existent-user',
+          'SELLER',
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws 409 ConflictException if admin attempts to demote own role', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(sampleAdmin);
+
+      await expect(
+        service.updateUserRole(
+          sampleAdmin.id,
+          sampleAdmin.id,
+          'USER',
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      await expect(
+        service.updateUserRole(
+          sampleAdmin.id,
+          sampleAdmin.id,
+          'SELLER',
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('allows admin setting own role to ADMIN (no-op)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(sampleAdmin);
+      mockPrisma.user.update.mockResolvedValue(sampleAdmin);
+
+      const result = await service.updateUserRole(
+        sampleAdmin.id,
+        sampleAdmin.id,
+        'ADMIN',
+      );
+
+      expect(result.role).toBe('ADMIN');
+    });
+
+    it('throws 409 ConflictException when attempting to demote the last remaining admin', async () => {
+      const targetAdmin = {
+        ...sampleDbUser,
+        id: '20000000-0000-4000-8000-000000000002',
+        role: 'ADMIN' as const,
+      };
+      mockPrisma.user.findUnique.mockResolvedValue(targetAdmin);
+      // Only 1 admin in the system
+      mockPrisma.user.count.mockResolvedValue(1);
+
+      await expect(
+        service.updateUserRole(
+          sampleAdmin.id,
+          targetAdmin.id,
+          'SELLER',
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockPrisma.user.count).toHaveBeenCalledWith({
+        where: { role: 'ADMIN' },
+      });
+    });
+
+    it('allows demoting an admin if another admin exists (adminCount > 1)', async () => {
+      const targetAdmin = {
+        ...sampleDbUser,
+        id: '20000000-0000-4000-8000-000000000002',
+        role: 'ADMIN' as const,
+      };
+      mockPrisma.user.findUnique.mockResolvedValue(targetAdmin);
+      mockPrisma.user.count.mockResolvedValue(2);
+      mockPrisma.user.update.mockResolvedValue({
+        ...targetAdmin,
+        role: 'SELLER',
+      });
+
+      const result = await service.updateUserRole(
+        sampleAdmin.id,
+        targetAdmin.id,
+        'SELLER',
+      );
+
+      expect(result.role).toBe('SELLER');
+    });
+  });
+
   describe('ServiceHandlers integration', () => {
-    it('registers both GET and PATCH operations and delegates with principal.sub', async () => {
+    it('registers GET/PATCH /api/auth/me and PATCH /api/admin/users/:id/role operations', async () => {
       const http = new HttpHandlers();
       const events = new EventHandlers();
       const handlers = new ServiceHandlers(http, events, service);
@@ -222,9 +373,11 @@ describe('UsersService (Unit Tests)', () => {
 
       const getHandler = http.get('auth_get__api_auth_me');
       const patchHandler = http.get('auth_patch__api_auth_me');
+      const adminRoleHandler = http.get('auth_patch__api_admin_users_id_role');
 
       expect(getHandler).toBeDefined();
       expect(patchHandler).toBeDefined();
+      expect(adminRoleHandler).toBeDefined();
 
       // GET calls
       const getRes = await getHandler!({
@@ -249,6 +402,45 @@ describe('UsersService (Unit Tests)', () => {
         patchHandler!({
           body: { name: 'Handled Name' },
         } as unknown as Parameters<typeof patchHandler>[0]),
+      ).rejects.toThrow(UnauthorizedException);
+
+      // Admin role update calls
+      mockPrisma.user.findUnique.mockResolvedValue(sampleDbUser);
+      mockPrisma.user.update.mockResolvedValue({
+        ...sampleDbUser,
+        role: 'SELLER',
+      });
+
+      const adminRoleRes = await adminRoleHandler!({
+        principal: { sub: sampleAdmin.id, role: 'ADMIN', type: 'access' },
+        params: { id: sampleDbUser.id },
+        body: { role: 'SELLER' },
+      } as unknown as Parameters<typeof adminRoleHandler>[0]);
+      expect(adminRoleRes).toEqual(expect.objectContaining({ role: 'SELLER' }));
+
+      // Non-admin calling admin endpoint throws 403 ForbiddenException
+      await expect(
+        adminRoleHandler!({
+          principal: { sub: sampleDbUser.id, role: 'USER', type: 'access' },
+          params: { id: sampleDbUser.id },
+          body: { role: 'SELLER' },
+        } as unknown as Parameters<typeof adminRoleHandler>[0]),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        adminRoleHandler!({
+          principal: { sub: sampleDbUser.id, role: 'SELLER', type: 'access' },
+          params: { id: sampleDbUser.id },
+          body: { role: 'SELLER' },
+        } as unknown as Parameters<typeof adminRoleHandler>[0]),
+      ).rejects.toThrow(ForbiddenException);
+
+      // Missing principal throws 401 UnauthorizedException
+      await expect(
+        adminRoleHandler!({
+          params: { id: sampleDbUser.id },
+          body: { role: 'SELLER' },
+        } as unknown as Parameters<typeof adminRoleHandler>[0]),
       ).rejects.toThrow(UnauthorizedException);
     });
   });

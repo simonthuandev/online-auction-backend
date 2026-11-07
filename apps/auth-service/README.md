@@ -31,7 +31,7 @@ Nguồn chính: [OpenAPI](../../contracts/openapi/auth.json). Dev cung cấp `GE
 | `POST /api/auth/logout` | `auth_post__api_auth_logout` | public  | completed |
 | `GET /api/auth/me` | `auth_get__api_auth_me` | bearer  | implemented |
 | `PATCH /api/auth/me` | `auth_patch__api_auth_me` | bearer  | implemented |
-| `PATCH /api/admin/users/{id}/role` | `auth_patch__api_admin_users_id_role` | bearer ADMIN | planned |
+| `PATCH /api/admin/users/{id}/role` | `auth_patch__api_admin_users_id_role` | bearer ADMIN | implemented |
 
 Completed là code thật qua controller. Implemented là handler nghiệp vụ đăng ký qua `src/service-handlers.ts`. Planned trả 501 khi chưa đăng ký handler. Demo internal chỉ bật dev/test và ghi PlatformProbe, chưa thay đổi bảng nghiệp vụ. Ownership phải kiểm tra trong handler, không chỉ dựa role.
 
@@ -76,6 +76,33 @@ Response 200:
   "isActive": true
 }
 ```
+
+### Ví dụ API Admin Quản trị Role (`PATCH /api/admin/users/{id}/role`)
+
+**Đổi vai trò người dùng (chỉ ADMIN):**
+```http
+PATCH /api/admin/users/10000000-0000-4000-8000-000000000003/role HTTP/1.1
+Authorization: Bearer <adminAccessToken>
+Content-Type: application/json
+
+{
+  "role": "SELLER"
+}
+```
+Response 200:
+```json
+{
+  "id": "10000000-0000-4000-8000-000000000003",
+  "email": "bidder@auction.test",
+  "name": "Bidder One",
+  "role": "SELLER",
+  "avatarUrl": "https://example.com/avatar.png",
+  "isActive": true
+}
+```
+
+> **Lưu ý về hiệu lực của Role mới:** Access token đang sống (15 phút) của người dùng vẫn mang role cũ do chữ ký JWT RS256 độc lập. Role mới sẽ có hiệu lực ngay ở lần đăng nhập (login) hoặc làm mới token (refresh) kế tiếp (cơ chế refresh đọc trực tiếp thông tin user từ database nên token mới được cấp sẽ mang role đã cập nhật).
+
 
 ## Điểm viết nghiệp vụ
 

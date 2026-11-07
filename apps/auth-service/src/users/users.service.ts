@@ -2,6 +2,8 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
 import { Prisma, type User } from '@prisma/client/auth/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -121,6 +123,46 @@ export class UsersService {
         ...(name !== undefined && { name }),
         ...(avatarUrl !== undefined && { avatarUrl }),
       },
+    });
+
+    return mapToProfile(updated);
+  }
+
+  async updateUserRole(
+    adminId: string,
+    targetUserId: string,
+    newRole: 'USER' | 'SELLER' | 'ADMIN',
+  ): Promise<UserProfile> {
+    if (!['USER', 'SELLER', 'ADMIN'].includes(newRole)) {
+      throw new BadRequestException('Invalid role specified');
+    }
+
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+    });
+
+    if (!targetUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Admin cannot demote their own role
+    if (adminId === targetUserId && newRole !== 'ADMIN') {
+      throw new ConflictException('Admin cannot demote own role');
+    }
+
+    // Cannot demote the last remaining admin in the system
+    if (targetUser.role === 'ADMIN' && newRole !== 'ADMIN') {
+      const adminCount = await this.prisma.user.count({
+        where: { role: 'ADMIN' },
+      });
+      if (adminCount <= 1) {
+        throw new ConflictException('Cannot demote the last remaining admin');
+      }
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: targetUserId },
+      data: { role: newRole },
     });
 
     return mapToProfile(updated);

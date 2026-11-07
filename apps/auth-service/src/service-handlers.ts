@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  UnauthorizedException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { HttpHandlers, EventHandlers, type AuthRequest } from '@app/common';
 import { UsersService } from './users/users.service.js';
 
@@ -27,5 +32,24 @@ export class ServiceHandlers implements OnModuleInit {
       }
       return this.users.updateProfile(userId, request.body);
     });
+
+    this.http.register(
+      'auth_patch__api_admin_users_id_role',
+      async (request: AuthRequest) => {
+        const adminId = request.principal?.sub;
+        const role = request.principal?.role;
+        if (!adminId) {
+          throw new UnauthorizedException('Unauthenticated');
+        }
+        if (role !== 'ADMIN') {
+          throw new ForbiddenException('Admin access required');
+        }
+        const targetUserId = String(request.params.id);
+        const { role: newRole } = (request.body || {}) as {
+          role: 'USER' | 'SELLER' | 'ADMIN';
+        };
+        return this.users.updateUserRole(adminId, targetUserId, newRole);
+      },
+    );
   }
 }
