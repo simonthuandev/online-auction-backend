@@ -27,3 +27,4 @@ export * from './platform/realtime.js';
 export * from './platform/contracts.js';
 export * from './platform/handlers.js';
 export * from './platform/idempotency.js';
+export type { AuthRequest } from './platform/http.js';
