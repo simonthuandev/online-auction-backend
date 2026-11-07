@@ -5,6 +5,11 @@ import {
   type CreateCategoryInput,
   type UpdateCategoryInput,
 } from './category/category.service.js';
+import { ProductService } from './product/product.service.js';
+import type {
+  CreateProductInput,
+  UpdateProductInput,
+} from './product/product.dto.js';
 
 /** Register service-owned business handlers here; infrastructure is already wired. */
 @Injectable()
@@ -13,6 +18,7 @@ export class ServiceHandlers implements OnModuleInit {
     private readonly http: HttpHandlers,
     private readonly events: EventHandlers,
     private readonly categories: CategoryService,
+    private readonly products: ProductService,
   ) {}
   onModuleInit() {
     this.http.register('product_get__api_categories', async (request) =>
@@ -41,6 +47,45 @@ export class ServiceHandlers implements OnModuleInit {
         request.principal?.role,
       );
     });
+    this.http.register('product_get__api_products', async (request) =>
+      this.products.list(
+        Number(request.query.page ?? 1),
+        Number(request.query.pageSize ?? 20),
+        {
+          categoryId:
+            typeof request.query.categoryId === 'string'
+              ? request.query.categoryId
+              : undefined,
+          status:
+            typeof request.query.status === 'string'
+              ? request.query.status
+              : undefined,
+          search:
+            typeof request.query.search === 'string'
+              ? request.query.search
+              : undefined,
+        },
+      ),
+    );
+    this.http.register('product_post__api_products', async (request) =>
+      this.products.create(
+        request.principal?.sub,
+        request.body as CreateProductInput,
+      ),
+    );
+    this.http.register('product_get__api_products_id', async (request) =>
+      this.products.findById(String(request.params.id)),
+    );
+    this.http.register('product_patch__api_products_id', async (request) =>
+      this.products.update(
+        String(request.params.id),
+        request.principal?.sub,
+        request.body as UpdateProductInput,
+      ),
+    );
+    this.http.register('product_delete__api_products_id', async (request) =>
+      this.products.delete(String(request.params.id), request.principal?.sub),
+    );
     // this.events.register('auction.ended', async (tx, event) => { ... });
     // Event writes must use the supplied transaction, not an independent Prisma transaction.
   }

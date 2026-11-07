@@ -646,7 +646,7 @@
         "x-backend-path": "/products",
         "x-auth": "public",
         "x-roles": [],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",
@@ -770,7 +770,7 @@
         "x-roles": [
           "SELLER"
         ],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "201": {
             "description": "Success",
@@ -897,8 +897,7 @@
                   },
                   "status": {
                     "enum": [
-                      "DRAFT",
-                      "READY"
+                      "DRAFT"
                     ]
                   }
                 },
@@ -920,7 +919,7 @@
         "x-backend-path": "/products/{id}",
         "x-auth": "public",
         "x-roles": [],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",
@@ -1012,7 +1011,7 @@
         "x-roles": [
           "SELLER"
         ],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",
@@ -1168,7 +1167,7 @@
         "x-roles": [
           "SELLER"
         ],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",
@@ -1490,6 +1489,9 @@
           "categoryId": {
             "type": "string",
             "format": "uuid"
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category"
           },
           "title": {
             "type": "string"
