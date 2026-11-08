@@ -9,6 +9,7 @@ import { OrderQueryService } from './order/query/order-query.service.js';
   providers: [ServiceHandlers, OrderConsumer, OrderQueryService],
   exports: [OrderConsumer, OrderQueryService],
   imports: [
+    PrismaModule,
     PlatformModule.register(PrismaModule, {
       provide: PLATFORM_DB,
       inject: [PrismaService],
