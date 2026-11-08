@@ -413,7 +413,7 @@
         "x-backend-path": "/internal/orders/{id}/payment-context",
         "x-auth": "internal",
         "x-roles": [],
-        "x-implementation": "demo",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",

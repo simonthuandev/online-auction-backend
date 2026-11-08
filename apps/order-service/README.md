@@ -27,7 +27,7 @@ Nguồn chính: [OpenAPI](../../contracts/openapi/order.json). Dev cung cấp `G
 | `GET /internal/order/dependencies` | `order_get__internal_order_dependencies` | internal  | completed |
 | `GET /api/orders` | `order_get__api_orders` | bearer  | implemented |
 | `GET /api/orders/{id}` | `order_get__api_orders_id` | bearer  | implemented |
-| `GET /internal/orders/{id}/payment-context` | `order_get__internal_orders_id_payment-context` | internal  | demo |
+| `GET /internal/orders/{id}/payment-context` | `order_get__internal_orders_id_payment-context` | internal  | implemented |
 
 Completed/implemented là code thật. Planned trả 501 khi chưa đăng ký handler. Demo internal chỉ bật dev/test và ghi PlatformProbe, chưa thay đổi bảng nghiệp vụ. Ownership phải kiểm tra trong handler, không chỉ dựa role.
 
