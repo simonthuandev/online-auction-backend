@@ -187,7 +187,7 @@
         "x-backend-path": "/orders",
         "x-auth": "bearer",
         "x-roles": [],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",
@@ -316,7 +316,7 @@
         "x-backend-path": "/orders/{id}",
         "x-auth": "bearer",
         "x-roles": [],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",
