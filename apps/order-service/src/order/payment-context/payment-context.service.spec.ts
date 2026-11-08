@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { NotFoundException, ConflictException } from '@nestjs/common';
-import { PaymentContextService } from '../apps/order-service/src/order/payment-context/payment-context.service.js';
+import { PaymentContextService } from './payment-context.service.js';
 import { OrderStatus } from '@prisma/client/order/index.js';
 import { Decimal } from '@prisma/client/order/runtime/library.js';
 
