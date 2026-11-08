@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CategoryService } from '../category/category.service.js';
 import { ServiceHandlers } from '../service-handlers.js';
 import { ProductService } from './product.service.js';
+import { ReservationService } from '../reservation/reservation.service.js';
 import type { EventHandlers, HttpHandlers } from '@app/common';
 
 type TestRequest = {
@@ -32,6 +33,9 @@ describe('Product HTTP handlers', () => {
     update: vi.fn(),
     delete: vi.fn(),
   };
+  const reservations = {
+    reserve: vi.fn(),
+  };
 
   beforeEach(() => {
     registered.clear();
@@ -41,10 +45,11 @@ describe('Product HTTP handlers', () => {
       {} as EventHandlers,
       categories as unknown as CategoryService,
       products as unknown as ProductService,
+      reservations as unknown as ReservationService,
     ).onModuleInit();
   });
 
-  it('registers every Product CRUD operation from the contract', () => {
+  it('registers every Product CRUD and reservation operation from the contract', () => {
     expect(
       [
         'product_get__api_products',
@@ -52,6 +57,7 @@ describe('Product HTTP handlers', () => {
         'product_get__api_products_id',
         'product_patch__api_products_id',
         'product_delete__api_products_id',
+        'product_put__internal_products_id_auction-reservation',
       ].every((operationId) => registered.has(operationId)),
     ).toBe(true);
   });
@@ -75,6 +81,31 @@ describe('Product HTTP handlers', () => {
     expect(products.create).toHaveBeenCalledWith(
       'authenticated-seller-id',
       body,
+    );
+  });
+
+  it('delegates internal auction reservation to reservation service', async () => {
+    const handler = registered.get(
+      'product_put__internal_products_id_auction-reservation',
+    );
+    if (!handler)
+      throw new Error('Auction reservation handler was not registered');
+
+    const body = {
+      auctionId: 'auction-123',
+      sellerId: 'seller-456',
+    };
+
+    await handler({
+      params: { id: 'prod-789' },
+      query: {},
+      body,
+    });
+
+    expect(reservations.reserve).toHaveBeenCalledWith(
+      'prod-789',
+      'auction-123',
+      'seller-456',
     );
   });
 });

@@ -1273,7 +1273,7 @@
         "x-backend-path": "/internal/products/{id}/auction-reservation",
         "x-auth": "internal",
         "x-roles": [],
-        "x-implementation": "demo",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",
