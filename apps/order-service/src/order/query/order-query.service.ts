@@ -63,7 +63,10 @@ export class OrderQueryService {
             query.status !== null &&
             query.status !== ''
         ) {
-            const statusStr = String(query.status);
+            if (typeof query.status !== 'string') {
+                throw new BadRequestException('Invalid order status');
+            }
+            const statusStr = query.status;
             if (!Object.values(OrderStatus).includes(statusStr as OrderStatus)) {
                 throw new BadRequestException(`Invalid order status: ${statusStr}`);
             }

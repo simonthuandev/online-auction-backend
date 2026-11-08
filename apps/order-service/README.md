@@ -25,11 +25,11 @@ Nguồn chính: [OpenAPI](../../contracts/openapi/order.json). Dev cung cấp `G
 |---|---|---|---|
 | `GET /api/order/health` | `order_get__api_order_health` | public  | completed |
 | `GET /internal/order/dependencies` | `order_get__internal_order_dependencies` | internal  | completed |
-| `GET /api/orders` | `order_get__api_orders` | bearer  | completed |
-| `GET /api/orders/{id}` | `order_get__api_orders_id` | bearer  | completed |
+| `GET /api/orders` | `order_get__api_orders` | bearer  | implemented |
+| `GET /api/orders/{id}` | `order_get__api_orders_id` | bearer  | implemented |
 | `GET /internal/orders/{id}/payment-context` | `order_get__internal_orders_id_payment-context` | internal  | demo |
 
-Completed là code thật. Planned trả 501 khi chưa đăng ký handler. Demo internal chỉ bật dev/test và ghi PlatformProbe, chưa thay đổi bảng nghiệp vụ. Ownership phải kiểm tra trong handler, không chỉ dựa role.
+Completed/implemented là code thật. Planned trả 501 khi chưa đăng ký handler. Demo internal chỉ bật dev/test và ghi PlatformProbe, chưa thay đổi bảng nghiệp vụ. Ownership phải kiểm tra trong handler, không chỉ dựa role.
 
 ## Điểm viết nghiệp vụ
 
@@ -70,7 +70,7 @@ Host entrypoint dùng role riêng từ `ORDER_DB_USER/PASSWORD`; không copy sec
 ## Checklist nghiệp vụ cần làm
 
 - [x] Tạo Order từ auction.ended có winner; giữ auctionId unique.
-- [ ] Chỉ buyer/seller của đơn được đọc.
+- [x] Chỉ buyer/seller của đơn được đọc.
 - [ ] payment.succeeded phải khớp buyer, amount, currency trước chuyển PAID.
 - [ ] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
 - [ ] Test rollback, retry và event trùng nếu có consumer/producer.

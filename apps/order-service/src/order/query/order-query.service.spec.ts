@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { OrderQueryService } from '../apps/order-service/src/order/query/order-query.service.js';
+import { OrderQueryService } from './order-query.service.js';
 import { OrderStatus } from '@prisma/client/order/index.js';
 import { Decimal } from '@prisma/client/order/runtime/library.js';
 
