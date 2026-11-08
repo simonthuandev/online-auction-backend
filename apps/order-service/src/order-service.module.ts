@@ -4,11 +4,17 @@ import { PlatformModule, PLATFORM_DB, type Transaction } from '@app/common';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { PrismaService } from './prisma/prisma.service.js';
 import { OrderConsumer } from './order/order.consumer.js';
+import { PaymentContextService } from './order/payment-context/payment-context.service.js';
 
 @Module({
-  providers: [ServiceHandlers, OrderConsumer],
-  exports: [OrderConsumer],
+  providers: [
+    ServiceHandlers,
+    OrderConsumer,
+    PaymentContextService,
+  ],
+  exports: [OrderConsumer, PaymentContextService],
   imports: [
+    PrismaModule,
     PlatformModule.register(PrismaModule, {
       provide: PLATFORM_DB,
       inject: [PrismaService],
