@@ -6,12 +6,16 @@ import { PrismaService } from './prisma/prisma.service.js';
 import { CategoryService } from './category/category.service.js';
 import { ProductService } from './product/product.service.js';
 import { ProductRepository } from './product/product.repository.js';
+import { ReservationService } from './reservation/reservation.service.js';
+import { ReservationRepository } from './reservation/reservation.repository.js';
 @Module({
   providers: [
     ServiceHandlers,
     CategoryService,
     ProductService,
     ProductRepository,
+    ReservationService,
+    ReservationRepository,
   ],
   imports: [
     PlatformModule.register(PrismaModule, {

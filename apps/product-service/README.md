@@ -34,7 +34,7 @@ Nguồn chính: [OpenAPI](../../contracts/openapi/product.json). Dev cung cấp 
 | `GET /api/products/{id}`                          | `product_get__api_products_id`                          | public        | implemented |
 | `PATCH /api/products/{id}`                        | `product_patch__api_products_id`                        | bearer SELLER | implemented |
 | `DELETE /api/products/{id}`                       | `product_delete__api_products_id`                       | bearer SELLER | implemented |
-| `PUT /internal/products/{id}/auction-reservation` | `product_put__internal_products_id_auction-reservation` | internal      | demo        |
+| `PUT /internal/products/{id}/auction-reservation` | `product_put__internal_products_id_auction-reservation` | internal      | implemented |
 
 Completed/implemented là code thật. Planned trả 501 khi chưa đăng ký handler. Demo internal chỉ bật dev/test và ghi PlatformProbe, chưa thay đổi bảng nghiệp vụ. Ownership phải kiểm tra trong handler, không chỉ dựa role.
 
@@ -100,6 +100,31 @@ Response Product gồm `id`, `sellerId`, `categoryId`, `category`, `title`, `des
 }
 ```
 
+## Auction Reservation (Internal)
+
+- Route nội bộ `PUT /internal/products/{id}/auction-reservation`, bảo vệ bằng `INTERNAL_AUCTION_KEY` (dispatcher tự kiểm tra qua header `x-service-key`). Tuyệt đối không publish qua KrakenD Gateway.
+- Request body: `{ "auctionId": "...", "sellerId": "..." }`.
+- Cập nhật nguyên tử: Sử dụng khóa dòng `SELECT ... FOR UPDATE` trong transaction để chống race condition. Khi product ở trạng thái `READY`, cập nhật nguyên tử:
+  - `status = RESERVED`
+  - `reservedAuctionId = auctionId`
+  - `reservationSnapshot = { productTitle, productThumbnail }` (thumbnail lấy từ ảnh primary hoặc null nếu không có)
+  - `lastAuctionVersion = 0`
+- Quy tắc kiểm tra:
+  - Product không tồn tại → `404 Not Found`.
+  - `sellerId` không khớp `product.sellerId` → `403 Forbidden`.
+  - Product chưa `READY` và `reservedAuctionId` khác `auctionId` (ví dụ: đang `DRAFT`, `IN_AUCTION`, `SOLD`, hoặc bị giữ bởi auction khác) → `409 Conflict`.
+  - Idempotent: Gọi lại cùng `auctionId` (với sellerId hợp lệ) → `200 OK` trả snapshot cũ từ `reservationSnapshot` mà không thay đổi dữ liệu database.
+- Response đúng schema `Reservation`:
+  ```json
+  {
+    "auctionId": "11111111-1111-4111-8111-111111111111",
+    "productId": "22222222-2222-4222-8222-222222222222",
+    "sellerId": "33333333-3333-4333-8333-333333333333",
+    "productTitle": "Máy ảnh film",
+    "productThumbnail": "https://cdn.example.test/camera.jpg"
+  }
+  ```
+
 ## Kết nối sẵn có
 
 - PrismaService riêng trong `src/prisma`; schema/migration dưới `prisma/`.
@@ -124,7 +149,7 @@ Host entrypoint dùng role riêng từ `PRODUCT_DB_USER/PASSWORD`; không copy s
 
 - [x] Viết Category CRUD với phân trang/tìm kiếm và chỉ ADMIN được ghi.
 - [x] Viết Product CRUD, ownership, trạng thái và quy tắc ảnh.
-- [ ] Reservation phải cập nhật nguyên tử và idempotent theo auctionId; reset lastAuctionVersion khi giữ sản phẩm cho phiên mới.
+- [x] Reservation phải cập nhật nguyên tử và idempotent theo auctionId; reset lastAuctionVersion khi giữ sản phẩm cho phiên mới.
 - [ ] Consumer lifecycle kiểm tra reservedAuctionId/version, tránh event cũ tác động phiên mới.
 - [ ] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
 - [ ] Test rollback, retry và event trùng nếu có consumer/producer.

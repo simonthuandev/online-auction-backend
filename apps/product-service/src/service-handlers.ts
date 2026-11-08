@@ -10,6 +10,8 @@ import type {
   CreateProductInput,
   UpdateProductInput,
 } from './product/product.dto.js';
+import { ReservationService } from './reservation/reservation.service.js';
+import type { ReserveProductInput } from './reservation/reservation.dto.js';
 
 /** Register service-owned business handlers here; infrastructure is already wired. */
 @Injectable()
@@ -19,6 +21,7 @@ export class ServiceHandlers implements OnModuleInit {
     private readonly events: EventHandlers,
     private readonly categories: CategoryService,
     private readonly products: ProductService,
+    private readonly reservations: ReservationService,
   ) {}
   onModuleInit() {
     this.http.register('product_get__api_categories', async (request) =>
@@ -85,6 +88,17 @@ export class ServiceHandlers implements OnModuleInit {
     );
     this.http.register('product_delete__api_products_id', async (request) =>
       this.products.delete(String(request.params.id), request.principal?.sub),
+    );
+    this.http.register(
+      'product_put__internal_products_id_auction-reservation',
+      async (request) => {
+        const body = request.body as ReserveProductInput;
+        return this.reservations.reserve(
+          String(request.params.id),
+          body.auctionId,
+          body.sellerId,
+        );
+      },
     );
     // this.events.register('auction.ended', async (tx, event) => { ... });
     // Event writes must use the supplied transaction, not an independent Prisma transaction.
