@@ -954,6 +954,44 @@
       ]
     },
     {
+      "endpoint": "/api/payments/{id}/cod/confirm",
+      "method": "POST",
+      "output_encoding": "no-op",
+      "timeout": "5000ms",
+      "input_headers": [
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Request-Id",
+        "X-Correlation-Id"
+      ],
+      "input_query_strings": [
+        "*"
+      ],
+      "extra_config": {
+        "auth/validator": {
+          "alg": "RS256",
+          "disable_jwk_security": true,
+          "jwk_local_path": "/etc/krakend/keys/jwk.json",
+          "issuer": "online-auction",
+          "audience": [
+            "online-auction-api"
+          ],
+          "cache": false
+        }
+      },
+      "backend": [
+        {
+          "host": [
+            "http://payment-service:3005"
+          ],
+          "url_pattern": "/payments/{id}/cod/confirm",
+          "method": "POST",
+          "encoding": "no-op"
+        }
+      ]
+    },
+    {
       "endpoint": "/api/payments/order/{orderId}",
       "method": "GET",
       "output_encoding": "no-op",
