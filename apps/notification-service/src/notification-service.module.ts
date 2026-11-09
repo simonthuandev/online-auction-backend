@@ -3,8 +3,10 @@ import { ServiceHandlers } from './service-handlers.js';
 import { PlatformModule, PLATFORM_DB, type Transaction } from '@app/common';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { PrismaService } from './prisma/prisma.service.js';
+import { NotificationService } from './notification/notification.service.js';
+import { NotificationRepository } from './notification/notification.repository.js';
 @Module({
-  providers: [ServiceHandlers],
+  providers: [ServiceHandlers, NotificationService, NotificationRepository],
   imports: [
     PlatformModule.register(PrismaModule, {
       provide: PLATFORM_DB,

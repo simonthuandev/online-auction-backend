@@ -187,7 +187,7 @@
         "x-backend-path": "/notifications",
         "x-auth": "bearer",
         "x-roles": [],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",
@@ -316,7 +316,7 @@
         "x-backend-path": "/notifications/{id}/read",
         "x-auth": "bearer",
         "x-roles": [],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",
