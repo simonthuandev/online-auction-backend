@@ -32,19 +32,23 @@ Completed là code thật. Planned trả 501 khi chưa đăng ký handler. Demo 
 
 ## Điểm viết nghiệp vụ
 
-`src/service-handlers.ts` đã được đưa vào module. Đăng ký `HttpHandlers.register(operationId, handler)` và `EventHandlers.register(eventName, handler)` ở đây, rồi delegate tới application service/repository của bạn. HTTP validation, token và role đã chạy trước handler.
+`src/service-handlers.ts` đã được đưa vào module. Đăng ký `HttpHandlers.register(operationId, handler)` và `EventHandlers.register(eventName, handler)` ở đây, rồi delegate tới application service/repository/consumer của bạn. HTTP validation, token và role đã chạy trước handler.
 
-Ví dụ pattern (copy operationId đúng từ bảng trên):
+Ví dụ pattern:
 
 ```ts
 this.http.register('<operationId>', async request => {
   // request.principal.sub là user đã xác thực trên protected endpoint.
-  // Gọi application service và trả response đúng OpenAPI.
   return this.application.execute(request);
+});
+
+this.events.register('<eventName>', async (tx, event) => {
+  // Consumer ghi DB bằng transaction tx được cung cấp và trả về callback sau commit
+  return this.consumer.handleEvent(tx, event);
 });
 ```
 
-Không tạo controller trùng route dispatcher. Có thể tự tổ chức domain/application/repository nội bộ. Consumer phải dùng transaction được truyền vào, không mở transaction riêng để ghi nghiệp vụ.
+Không tạo controller trùng route dispatcher. Consumer phải dùng transaction được truyền vào, không mở transaction riêng để ghi nghiệp vụ.
 
 ## Nghiệp vụ Notification
 
@@ -114,6 +118,84 @@ Ví dụ Response (`200 OK`):
 }
 ```
 
+### 3. Consumer sinh thông báo từ event (NOTIF-02)
+
+Consumer lắng nghe hàng đợi `queue.notification.events` từ RabbitMQ để tự động sinh thông báo và phát realtime qua Socket.IO.
+
+#### Bảng ánh xạ Event $\rightarrow$ Loại thông báo:
+
+| Event | Điều kiện | Loại thông báo | Người nhận | Nội dung & Metadata |
+|---|---|---|---|---|
+| `bid.placed` | `previousBidderId !== null && previousBidderId !== newBidderId` | `OUTBID` | `previousBidderId` | Tiêu đề: "Bạn đã bị vượt giá!". Không chứa thông tin người trả giá mới (`newBidderId`). `metadata`: `{ auctionId, productId, currentPrice, currency }`. |
+| `bid.placed` | `previousBidderId === null` hoặc `previousBidderId === newBidderId` | Không tạo | - | Lần đặt giá đầu tiên hoặc tự nâng giá chính mình $\rightarrow$ không tạo thông báo. |
+| `auction.ended` | `winnerId !== null` (Có người thắng cuộc) | `AUCTION_WON` | `winnerId` | Tiêu đề: "Chúc mừng! Bạn đã thắng phiên đấu giá". `metadata`: `{ auctionId, productId, finalPrice, currency }`. Không chứa `sellerId`. |
+| `auction.ended` | `winnerId !== null` (Có người thắng cuộc) | `AUCTION_ENDED` | `sellerId` | Tiêu đề: "Phiên đấu giá đã kết thúc". `metadata`: `{ auctionId, productId, finalPrice, currency }`. Không chứa `winnerId`. |
+| `auction.ended` | `winnerId === null` (Không có người thắng) | `AUCTION_ENDED` | `sellerId` | Tiêu đề: "Phiên đấu giá đã kết thúc" (nêu rõ không có người trả giá thành công). `metadata`: `{ auctionId, productId }`. |
+| `payment.succeeded` | Mọi trường hợp | Không tạo (Tạm thời) | - | Handler no-op ghi log nhận diện event (chờ triển khai đầy đủ trong `NOTIF-03`). |
+
+#### Nguyên tắc ghi Database & Chống trùng (Idempotency):
+- Ghi trực tiếp trong cùng giao dịch `tx` được platform cung cấp.
+- Sử dụng câu lệnh SQL có tham số hóa:
+  ```sql
+  INSERT INTO "Notification" ("id", "userId", "sourceEventId", "title", "message", "type", "isRead", "metadata", "createdAt")
+  VALUES ($1, $2, $3, $4, $5, $6::"NotificationType", false, $7::jsonb, now())
+  ON CONFLICT ("sourceEventId", "userId", "type") DO NOTHING
+  RETURNING "id", "userId", "sourceEventId", "title", "message", "type", "isRead", "metadata", "createdAt"
+  ```
+- Nhờ ràng buộc duy nhất `@@unique([sourceEventId, userId, type])`, khi nhận lại cùng một event (replay/retry), câu lệnh `INSERT` sẽ trả về 0 dòng, ngăn chặn việc tạo trùng bản ghi.
+- Nếu ghi DB gặp lỗi, transaction sẽ tự động throw để platform rollback cả `ProcessedEvent` và retry.
+
+#### Nguyên tắc phát Realtime (Socket.IO):
+- **Không phát socket trong transaction**: Consumer trả về một hàm callback được platform thực thi **sau khi transaction đã commit thành công**.
+- Chỉ những bản ghi **thực sự được insert** (nằm trong kết quả `RETURNING`) mới được gửi cho hàm callback để phát socket; các lần replay bị bỏ qua sẽ không phát lại socket.
+- Payload gửi qua socket tuân thủ schema `Notification` của OpenAPI (`id`, `userId`, `title`, `message`, `type`, `isRead`, `metadata`, `createdAt`).
+- Lỗi socket/Redis được bọc `try/catch` độc lập cho từng bản ghi, ghi log cảnh báo và tiếp tục phát các bản ghi còn lại. Lỗi socket không làm hỏng transaction hay khiến message bị retry; client có thể tải lại dữ liệu thông qua REST API (`GET /api/notifications`).
+
+#### Ví dụ Event `bid.placed` và Payload phát Realtime:
+
+Event nhận vào:
+```json
+{
+  "eventId": "30000000-0000-4000-8000-000000000001",
+  "eventName": "bid.placed",
+  "schemaVersion": 1,
+  "occurredAt": "2026-11-10T10:00:00.000Z",
+  "producer": "auction",
+  "aggregateId": "20000000-0000-4000-8000-000000000001",
+  "aggregateVersion": 2,
+  "correlationId": "50000000-0000-4000-8000-000000000001",
+  "payload": {
+    "auctionId": "20000000-0000-4000-8000-000000000001",
+    "productId": "10000000-0000-4000-8000-000000000001",
+    "productTitle": "Đồng hồ Thụy Sĩ Vintage",
+    "newBidderId": "10000000-0000-4000-8000-000000000002",
+    "previousBidderId": "10000000-0000-4000-8000-000000000001",
+    "currentPrice": "2500000",
+    "currency": "VND",
+    "bidTime": "2026-11-10T10:00:00.000Z"
+  }
+}
+```
+
+Payload phát qua socket (`notification:new` tới room `user:10000000-0000-4000-8000-000000000001`):
+```json
+{
+  "id": "40000000-0000-4000-8000-000000000001",
+  "userId": "10000000-0000-4000-8000-000000000001",
+  "title": "Bạn đã bị vượt giá!",
+  "message": "Đã có người đặt giá cao hơn cho sản phẩm \"Đồng hồ Thụy Sĩ Vintage\".",
+  "type": "OUTBID",
+  "isRead": false,
+  "metadata": {
+    "auctionId": "20000000-0000-4000-8000-000000000001",
+    "productId": "10000000-0000-4000-8000-000000000001",
+    "currentPrice": "2500000",
+    "currency": "VND"
+  },
+  "createdAt": "2026-11-10T10:00:01.000Z"
+}
+```
+
 ## Kết nối sẵn có
 
 - PrismaService riêng trong `src/prisma`; schema/migration dưới `prisma/`.
@@ -136,12 +218,12 @@ Host entrypoint dùng role riêng từ `NOTIFICATION_DB_USER/PASSWORD`; không c
 
 ## Checklist nghiệp vụ cần làm
 
-- [ ] Lưu notification chống trùng theo sourceEventId/userId/type.
+- [x] Lưu notification chống trùng theo sourceEventId/userId/type.
 - [x] Chỉ người nhận được đọc/đánh dấu đã đọc.
-- [ ] Phát socket sau commit và dùng REST phục hồi.
-- [ ] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
-- [ ] Test rollback, retry và event trùng nếu có consumer/producer.
-- [ ] Cập nhật ví dụ request/event và README khi thêm tính năng.
+- [x] Phát socket sau commit và dùng REST phục hồi.
+- [x] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
+- [x] Test rollback, retry và event trùng nếu có consumer/producer.
+- [x] Cập nhật ví dụ request/event và README khi thêm tính năng.
 
 ## Kiểm thử và bàn giao
 
