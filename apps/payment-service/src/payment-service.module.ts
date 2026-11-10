@@ -3,9 +3,14 @@ import { ServiceHandlers } from './service-handlers.js';
 import { PlatformModule, PLATFORM_DB, type Transaction } from '@app/common';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { PrismaService } from './prisma/prisma.service.js';
+import { PaymentService } from './payment/payment.service.js';
+import { VnpayGateway } from './payment/vnpay.gateway.js';
+
 @Module({
-  providers: [ServiceHandlers],
+  providers: [ServiceHandlers, PaymentService, VnpayGateway],
+  exports: [PaymentService, VnpayGateway],
   imports: [
+    PrismaModule,
     PlatformModule.register(PrismaModule, {
       provide: PLATFORM_DB,
       inject: [PrismaService],
@@ -27,4 +32,4 @@ import { PrismaService } from './prisma/prisma.service.js';
     }),
   ],
 })
-export class PaymentServiceModule {}
+export class PaymentServiceModule { }
