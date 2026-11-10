@@ -8,6 +8,10 @@ export interface VnpayAttemptInput {
 
 @Injectable()
 export class VnpayGateway {
+    private getBaseUrl(): string | undefined {
+        return process.env.VNPAY_PAY_URL || process.env.VNPAY_URL;
+    }
+
     /**
      * Kiểm tra xem các biến môi trường của VNPay đã được cấu hình chưa
      */
@@ -15,7 +19,7 @@ export class VnpayGateway {
         return Boolean(
             process.env.VNPAY_TMN_CODE &&
             process.env.VNPAY_HASH_SECRET &&
-            process.env.VNPAY_URL,
+            this.getBaseUrl(),
         );
     }
 
@@ -25,13 +29,14 @@ export class VnpayGateway {
      * - Triển khai chi tiết ở PAY-04
      */
     buildPaymentUrl(attempt: VnpayAttemptInput): string {
-        if (!this.isConfigured()) {
+        const baseUrl = this.getBaseUrl();
+        if (!this.isConfigured() || !baseUrl) {
             throw new HttpException(
                 'FEATURE_NOT_IMPLEMENTED',
                 HttpStatus.NOT_IMPLEMENTED,
             );
         }
         // Stub URL tạm thời, PAY-04 sẽ hoàn thiện mã hóa HMAC-SHA512
-        return `${process.env.VNPAY_URL}?vnp_TxnRef=${attempt.providerReference}&vnp_Amount=${attempt.amount}`;
+        return `${baseUrl}?vnp_TxnRef=${attempt.providerReference}&vnp_Amount=${attempt.amount}`;
     }
 }

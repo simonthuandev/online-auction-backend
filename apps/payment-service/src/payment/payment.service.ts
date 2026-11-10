@@ -111,7 +111,7 @@ export class PaymentService {
 
                 // Kiểm tra Payment đã tồn tại cho orderId này chưa
                 const payments = await tx.query<PaymentRow>(
-                    'SELECT id, "orderId", "userId", amount, currency, status FROM "Payment" WHERE "orderId" = $1 FOR UPDATE',
+                    'SELECT id, "orderId", "userId", amount::text, currency, status FROM "Payment" WHERE "orderId" = $1 FOR UPDATE',
                     orderId,
                 );
 
@@ -125,20 +125,19 @@ export class PaymentService {
                 } else {
                     // Tạo mới Payment
                     const paymentId = randomUUID();
-                    const amountNum = Number(orderContext.amount);
                     await tx.execute(
-                        'INSERT INTO "Payment" (id, "orderId", "userId", amount, currency, status, "updatedAt") VALUES ($1, $2, $3, $4, $5, \'PENDING\', now())',
+                        'INSERT INTO "Payment" (id, "orderId", "userId", amount, currency, status, "updatedAt") VALUES ($1, $2, $3, $4::numeric, $5, \'PENDING\', now())',
                         paymentId,
                         orderContext.orderId,
                         orderContext.buyerId,
-                        amountNum,
+                        orderContext.amount,
                         orderContext.currency,
                     );
                     payment = {
                         id: paymentId,
                         orderId: orderContext.orderId,
                         userId: orderContext.buyerId,
-                        amount: amountNum,
+                        amount: orderContext.amount,
                         currency: orderContext.currency,
                         status: 'PENDING',
                     };
@@ -161,28 +160,27 @@ export class PaymentService {
                     activeAttempt = undefined;
                 }
 
-                // Xử lý cùng / khác method
+                // Xử lý cùng / khác method theo Quyết định #8
                 if (activeAttempt) {
-                    if (activeAttempt.paymentMethod === paymentMethod) {
-                        // Cùng phương thức: tái sử dụng attempt đang PENDING
-                    } else {
-                        // Khác phương thức: expire attempt cũ để tạo attempt với method mới
-                        await tx.execute(
-                            'UPDATE "PaymentAttempt" SET status = \'EXPIRED\', "updatedAt" = now() WHERE id = $1',
-                            activeAttempt.id,
+                    if (activeAttempt.paymentMethod !== paymentMethod) {
+                        // Khác phương thức khi đang có attempt PENDING -> ném 409 Conflict
+                        throw new ConflictException(
+                            `A pending payment attempt with method ${activeAttempt.paymentMethod} already exists`,
                         );
-                        activeAttempt = undefined;
                     }
+                    // Cùng phương thức: tái sử dụng attempt đang PENDING
                 }
 
                 // Nếu chưa có attempt hợp lệ -> Tạo attempt mới
                 if (!activeAttempt) {
                     const attemptId = randomUUID();
                     const providerReference = randomUUID().replaceAll('-', '');
-                    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // Hết hạn sau 15 phút
+                    // Quyết định #8: COD hạn 7 ngày, VNPay 15 phút
+                    const durationMs = paymentMethod === 'COD' ? 7 * 24 * 60 * 60 * 1000 : 15 * 60 * 1000;
+                    const expiresAt = new Date(Date.now() + durationMs);
 
                     await tx.execute(
-                        'INSERT INTO "PaymentAttempt" (id, "paymentId", "paymentMethod", "providerReference", status, "expiresAt", "updatedAt") VALUES ($1, $2, $3, $4, \'PENDING\', $5, now())',
+                        'INSERT INTO "PaymentAttempt" (id, "paymentId", "paymentMethod", "providerReference", status, "expiresAt", "updatedAt") VALUES ($1, $2, $3::"PaymentMethod", $4, \'PENDING\', $5::timestamp, now())',
                         attemptId,
                         payment.id,
                         paymentMethod,
@@ -205,7 +203,7 @@ export class PaymentService {
                 if (paymentMethod === 'VNPAY') {
                     paymentUrl = this.vnpayGateway.buildPaymentUrl({
                         id: activeAttempt.id,
-                        amount: Number(payment.amount),
+                        amount: String(payment.amount).split('.')[0],
                         providerReference: activeAttempt.providerReference,
                     });
                 }
@@ -214,7 +212,7 @@ export class PaymentService {
                     id: payment.id,
                     orderId: payment.orderId,
                     userId: payment.userId,
-                    amount: Number(payment.amount).toFixed(0),
+                    amount: String(payment.amount).split('.')[0],
                     currency: payment.currency as 'VND',
                     status: payment.status,
                     paymentUrl,
@@ -249,8 +247,17 @@ export class PaymentService {
             throw new ForbiddenException('Forbidden: You do not have access to this payment');
         }
 
+        // Quyết định #8: Lazy expire khi đọc
+        let pendingAttempt = payment.attempts[0];
+        if (pendingAttempt && new Date(pendingAttempt.expiresAt) <= new Date()) {
+            await this.prisma.paymentAttempt.update({
+                where: { id: pendingAttempt.id },
+                data: { status: 'EXPIRED' },
+            });
+            pendingAttempt = undefined as any;
+        }
+
         let paymentUrl: string | null = null;
-        const pendingAttempt = payment.attempts[0];
         if (
             pendingAttempt &&
             pendingAttempt.paymentMethod === 'VNPAY' &&
@@ -258,7 +265,7 @@ export class PaymentService {
         ) {
             paymentUrl = this.vnpayGateway.buildPaymentUrl({
                 id: pendingAttempt.id,
-                amount: Number(payment.amount),
+                amount: payment.amount.toFixed(0),
                 providerReference: pendingAttempt.providerReference,
             });
         }

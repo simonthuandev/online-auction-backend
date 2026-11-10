@@ -16,7 +16,11 @@ export class ServiceHandlers implements OnModuleInit {
 
     // [POST] /api/payments (PAY-02)
     this.http.register('payment_post__api_payments', async (request) => {
-      const idempotencyKey = String(request.headers['idempotency-key'] || '');
+      const idempotencyKey = String(
+        request.headers['idempotency-key'] ||
+          request.headers['Idempotency-Key'] ||
+          '',
+      );
       if (!idempotencyKey) {
         throw new BadRequestException('Idempotency-Key header is required');
       }
