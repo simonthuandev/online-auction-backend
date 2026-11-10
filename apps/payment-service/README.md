@@ -25,11 +25,13 @@ Nguồn chính: [OpenAPI](../../contracts/openapi/payment.json). Dev cung cấp 
 |---|---|---|---|
 | `GET /api/payment/health` | `payment_get__api_payment_health` | public  | completed |
 | `GET /internal/payment/dependencies` | `payment_get__internal_payment_dependencies` | internal  | completed |
-| `POST /api/payments` | `payment_post__api_payments` | bearer USER,SELLER | planned |
+| `POST /api/payments` | `payment_post__api_payments` | bearer USER,SELLER | completed  |
 | `POST /api/payments/{id}/cod/confirm` | `payment_post__api_payments_id_cod_confirm` | bearer ADMIN | planned |
-| `GET /api/payments/order/{orderId}` | `payment_get__api_payments_order_orderId` | bearer  | planned |
+| `GET /api/payments/order/{orderId}` | `payment_get__api_payments_order_orderId` | bearer  | completed  |
 | `GET /api/payments/vnpay/ipn` | `payment_get__api_payments_vnpay_ipn` | public  | planned |
 | `GET /api/payments/vnpay/return` | `payment_get__api_payments_vnpay_return` | public  | planned |
+
+> **Lưu ý nghiệp vụ**: Gọi lại `POST /api/payments` sau khi Order đã chuyển sang trạng thái `PAID` có thể nhận về mã phản hồi `409 Conflict`.
 
 Completed là code thật. Planned trả 501 khi chưa đăng ký handler. Demo internal chỉ bật dev/test và ghi PlatformProbe, chưa thay đổi bảng nghiệp vụ. Ownership phải kiểm tra trong handler, không chỉ dựa role.
 

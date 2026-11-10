@@ -190,7 +190,7 @@
           "USER",
           "SELLER"
         ],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "201": {
             "description": "Success",
@@ -415,7 +415,7 @@
         "x-backend-path": "/payments/order/{orderId}",
         "x-auth": "bearer",
         "x-roles": [],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",
