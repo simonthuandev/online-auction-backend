@@ -128,23 +128,28 @@ describe('PaymentService', () => {
 
         it('creates COD payment successfully when order is valid', async () => {
             mockDb.transaction = vi.fn(async (cb: any) => {
+                let capturedHash = '';
                 const mockTx = {
-                    execute: vi.fn(),
-                    query: vi.fn()
-                        .mockResolvedValueOnce([{ requestHash: 'd41d8cd98f00b204e9800998ecf8427e', response: null, statusCode: null }]) // Idempotency
-                        .mockResolvedValueOnce([]) // Không có payment cũ
-                        .mockResolvedValueOnce([]), // Không có attempt cũ
+                    execute: vi.fn(async (sql: string, ...args: any[]) => {
+                        if (sql.includes('IdempotencyRecord')) {
+                            capturedHash = args[4]; // Bắt hash thực tế từ withIdempotency
+                        }
+                    }),
+                    query: vi.fn(async (sql: string) => {
+                        if (sql.includes('IdempotencyRecord')) {
+                            return [{ requestHash: capturedHash, response: null, statusCode: null }];
+                        }
+                        return []; // Không có payment hay attempt cũ
+                    }),
                 };
                 return cb(mockTx);
             });
-
             const result = await service.createPayment(
                 { orderId, paymentMethod: 'COD' },
                 'test-idempotency-key',
                 { sub: buyerId, role: 'USER' } as any,
                 'corr-5',
             );
-
             expect(result.orderId).toBe(orderId);
             expect(result.userId).toBe(buyerId);
             expect(result.amount).toBe('200000');
