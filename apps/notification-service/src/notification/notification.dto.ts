@@ -1,4 +1,5 @@
 import type { NotificationType } from '@prisma/client/notification/index.js';
+export type { NotificationType };
 
 export type NotificationStatusFilter = 'UNREAD' | 'READ';
 

@@ -5,8 +5,15 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { PrismaService } from './prisma/prisma.service.js';
 import { NotificationService } from './notification/notification.service.js';
 import { NotificationRepository } from './notification/notification.repository.js';
+import { NotificationConsumer } from './notification/consumers/notification.consumer.js';
+
 @Module({
-  providers: [ServiceHandlers, NotificationService, NotificationRepository],
+  providers: [
+    ServiceHandlers,
+    NotificationService,
+    NotificationRepository,
+    NotificationConsumer,
+  ],
   imports: [
     PlatformModule.register(PrismaModule, {
       provide: PLATFORM_DB,

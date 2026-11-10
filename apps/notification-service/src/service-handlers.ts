@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { HttpHandlers, EventHandlers } from '@app/common';
 import { NotificationService } from './notification/notification.service.js';
+import { NotificationConsumer } from './notification/consumers/notification.consumer.js';
 
 /** Register service-owned business handlers here; infrastructure is already wired. */
 @Injectable()
@@ -9,6 +10,7 @@ export class ServiceHandlers implements OnModuleInit {
     private readonly http: HttpHandlers,
     private readonly events: EventHandlers,
     private readonly notifications: NotificationService,
+    private readonly consumer: NotificationConsumer,
   ) { }
   onModuleInit() {
     this.http.register('notification_get__api_notifications', async (request) =>
@@ -25,7 +27,16 @@ export class ServiceHandlers implements OnModuleInit {
           request.principal?.sub,
         ),
     );
-    // this.events.register('auction.ended', async (tx, event) => { ... });
-    // Event writes must use the supplied transaction, not an independent Prisma transaction.
+
+    // Event consumers
+    this.events.register('bid.placed', async (tx, event) =>
+      this.consumer.handleBidPlaced(tx, event),
+    );
+    this.events.register('auction.ended', async (tx, event) =>
+      this.consumer.handleAuctionEnded(tx, event),
+    );
+    this.events.register('payment.succeeded', async (tx, event) =>
+      this.consumer.handlePaymentSucceeded(tx, event),
+    );
   }
 }
