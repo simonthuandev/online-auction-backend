@@ -29,7 +29,7 @@ Nguồn chính: [OpenAPI](../../contracts/openapi/auction.json). Dev cung cấp 
 | `POST /api/auctions` | `auction_post__api_auctions` | bearer SELLER | implemented |
 | `GET /api/auctions/{id}` | `auction_get__api_auctions_id` | public  | implemented |
 | `GET /api/auctions/{id}/bids` | `auction_get__api_auctions_id_bids` | public  | implemented |
-| `POST /api/auctions/{id}/bids` | `auction_post__api_auctions_id_bids` | bearer USER,SELLER | planned |
+| `POST /api/auctions/{id}/bids` | `auction_post__api_auctions_id_bids` | bearer USER,SELLER | implemented |
 
 Completed là code thật. Implemented là handler nghiệp vụ đăng ký qua `src/service-handlers.ts`. Planned trả 501 khi chưa đăng ký handler. Demo internal chỉ bật dev/test và ghi PlatformProbe, chưa thay đổi bảng nghiệp vụ. Ownership phải kiểm tra trong handler, không chỉ dựa role.
 
@@ -200,6 +200,50 @@ Ví dụ payload event `auction.ended`:
 }
 ```
 
+### Đặt Bid chống race & Idempotency (`[AUC-04]`)
+
+#### Đặt giá cho phiên đấu giá (`POST /api/auctions/{id}/bids`)
+Route yêu cầu quyền `USER` hoặc `SELLER` và header `Idempotency-Key` (8-128 ký tự).
+Xử lý đồng thời và kiểm tra nghiệp vụ theo **Quyết định #4**:
+1. Sử dụng `withIdempotency` với payload băm `{ auctionId, amount }` tránh xung đột idempotency key giữa các phiên khác nhau.
+2. Khóa dòng Auction bằng `SELECT ... FOR UPDATE` và so sánh giờ DB (`timezone('UTC', now())`).
+3. Kiểm tra điều kiện:
+   - Phiên phải ở trạng thái `ACTIVE` và chưa hết hạn `now < endTime` (trả về 409 nếu không hợp lệ).
+   - Seller không được đặt giá cho phiên của mình (trả về 403 `Forbidden`).
+   - Người đang dẫn đầu không được tự nâng giá tiếp (trả về 409 `Conflict`).
+   - Lượt bid đầu tiên: `amount >= startingPrice` (trả về 400 nếu nhỏ hơn).
+   - Các lượt bid tiếp theo: `amount >= currentPrice + bidIncrement` (trả về 400 nếu nhỏ hơn).
+4. Thực thi nguyên tử:
+   - Insert bản ghi `Bid`.
+   - Cập nhật `Auction` (`currentPrice = amount`, `leadingBidderId = bidderId`, `version = version + 1`, `updatedAt = timezone('UTC', now())`).
+   - Enqueue event `bid.placed` vào bảng Outbox cùng transaction (`previousBidderId` là người dẫn đầu trước đó hoặc `null`).
+5. Sau khi commit:
+   - Chỉ khi cờ `executed` bật (lần chạy đầu, không phải replay) mới emit socket `auction:bid_updated` vào room `auction:${auctionId}`.
+   - Gặp lỗi phát socket chỉ log warning, không phá vỡ transaction hoặc response của client.
+
+```http
+POST /api/auctions/20000000-0000-4000-8000-000000000001/bids HTTP/1.1
+Host: localhost:8080
+Authorization: Bearer <bidderAccessToken>
+Idempotency-Key: b1c2d3e4-f5a6-7890-abcd-112233445566
+Content-Type: application/json
+
+{
+  "amount": "160000"
+}
+```
+
+Response 201:
+```json
+{
+  "id": "40000000-0000-4000-8000-000000000002",
+  "auctionId": "20000000-0000-4000-8000-000000000001",
+  "bidderId": "10000000-0000-4000-8000-000000000004",
+  "amount": "160000",
+  "createdAt": "2026-11-10T11:05:00.000Z"
+}
+```
+
 ## Điểm viết nghiệp vụ
 
 `src/service-handlers.ts` đã được đưa vào module. Đăng ký `HttpHandlers.register(operationId, handler)` và `EventHandlers.register(eventName, handler)` ở đây, rồi delegate tới application service/repository của bạn. HTTP validation, token và role đã chạy trước handler.
@@ -240,7 +284,7 @@ Host entrypoint dùng role riêng từ `AUCTION_DB_USER/PASSWORD`; không copy s
 
 - [x] Viết INITIALIZING worker và scheduler có khả năng tiếp tục sau restart.
 - [x] Khóa cùng dòng Auction khi bid/đóng phiên; kiểm tra thời gian database sau khóa.
-- [ ] Ghi bid/kết quả/outbox nguyên tử; dùng idempotency key.
+- [x] Ghi bid/kết quả/outbox nguyên tử; dùng idempotency key.
 - [x] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
 - [x] Test rollback, retry và event trùng nếu có consumer/producer.
 - [x] Cập nhật ví dụ request/event và README khi thêm tính năng.

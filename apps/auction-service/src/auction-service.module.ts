@@ -6,12 +6,14 @@ import { PrismaService } from './prisma/prisma.service.js';
 import { AuctionQueryModule } from './auction/query/auction-query.module.js';
 import { AuctionCreateModule } from './auction/create/auction-create.module.js';
 import { AuctionLifecycleModule } from './auction/lifecycle/auction-lifecycle.module.js';
+import { AuctionBidModule } from './auction/bid/auction-bid.module.js';
 @Module({
   providers: [ServiceHandlers],
   imports: [
     AuctionQueryModule,
     AuctionCreateModule,
     AuctionLifecycleModule,
+    AuctionBidModule,
     PlatformModule.register(PrismaModule, {
       provide: PLATFORM_DB,
       inject: [PrismaService],

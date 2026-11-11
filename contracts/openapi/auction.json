@@ -681,7 +681,7 @@
           "USER",
           "SELLER"
         ],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "201": {
             "description": "Success",
