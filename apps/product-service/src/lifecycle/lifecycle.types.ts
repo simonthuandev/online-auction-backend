@@ -1,10 +1,8 @@
-     
-      
-      import type { IntegrationEvent } from '@app/common';
+import type { IntegrationEvent } from '@app/common';
 
 export type ProductStatus =
   | 'DRAFT'
-  | 'READY'\oi;uui  
+  | 'READY'
   | 'RESERVED'
   | 'IN_AUCTION'
   | 'SOLD';
