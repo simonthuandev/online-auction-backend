@@ -12,6 +12,7 @@ import type {
 } from './product/product.dto.js';
 import { ReservationService } from './reservation/reservation.service.js';
 import type { ReserveProductInput } from './reservation/reservation.dto.js';
+import { LifecycleConsumer } from './lifecycle/lifecycle.consumer.js';
 
 /** Register service-owned business handlers here; infrastructure is already wired. */
 @Injectable()
@@ -22,6 +23,7 @@ export class ServiceHandlers implements OnModuleInit {
     private readonly categories: CategoryService,
     private readonly products: ProductService,
     private readonly reservations: ReservationService,
+    private readonly lifecycle: LifecycleConsumer,
   ) {}
   onModuleInit() {
     this.http.register('product_get__api_categories', async (request) =>
@@ -100,7 +102,11 @@ export class ServiceHandlers implements OnModuleInit {
         );
       },
     );
-    // this.events.register('auction.ended', async (tx, event) => { ... });
-    // Event writes must use the supplied transaction, not an independent Prisma transaction.
+    this.events.register('auction.started', async (tx, event) =>
+      this.lifecycle.handleAuctionStarted(tx, event),
+    );
+    this.events.register('auction.ended', async (tx, event) =>
+      this.lifecycle.handleAuctionEnded(tx, event),
+    );
   }
 }

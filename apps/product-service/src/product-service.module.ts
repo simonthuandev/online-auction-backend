@@ -8,6 +8,8 @@ import { ProductService } from './product/product.service.js';
 import { ProductRepository } from './product/product.repository.js';
 import { ReservationService } from './reservation/reservation.service.js';
 import { ReservationRepository } from './reservation/reservation.repository.js';
+import { LifecycleConsumer } from './lifecycle/lifecycle.consumer.js';
+import { LifecycleRepository } from './lifecycle/lifecycle.repository.js';
 @Module({
   providers: [
     ServiceHandlers,
@@ -16,6 +18,8 @@ import { ReservationRepository } from './reservation/reservation.repository.js';
     ProductRepository,
     ReservationService,
     ReservationRepository,
+    LifecycleConsumer,
+    LifecycleRepository,
   ],
   imports: [
     PlatformModule.register(PrismaModule, {

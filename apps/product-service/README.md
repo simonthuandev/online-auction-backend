@@ -125,6 +125,105 @@ Response Product gồm `id`, `sellerId`, `categoryId`, `category`, `title`, `des
   }
   ```
 
+## Auction Lifecycle Consumer (`queue.product.auction-events`)
+
+Service lắng nghe hai sự kiện từ `auction_exchange` thông qua queue `queue.product.auction-events`: `auction.started` và `auction.ended`. Consumer xử lý trong transaction cùng với `ProcessedEvent` của platform để đảm bảo tính nguyên tử và chống trùng lặp.
+
+### Bảng chuyển trạng thái theo Event
+
+| Event | Trạng thái nguồn hợp lệ | Trạng thái đích | Cập nhật `lastAuctionVersion` | Cập nhật Reservation | Hành vi khi không thỏa điều kiện |
+|---|---|---|---|---|---|
+| `auction.started` | `RESERVED` | `IN_AUCTION` | `event.aggregateVersion` | Giữ nguyên `reservedAuctionId` và `reservationSnapshot` | Nếu trạng thái không phải `RESERVED` (đã `IN_AUCTION`, `SOLD`, `READY`, `DRAFT`) hoặc version không lớn hơn → **Ignore** |
+| `auction.ended` (có `winnerId`) | `IN_AUCTION` hoặc `RESERVED` | `SOLD` | `event.aggregateVersion` | Giữ nguyên `reservedAuctionId` để truy vết | Nếu đã `SOLD` / `READY` hoặc version không lớn hơn → **Ignore** |
+| `auction.ended` (không có `winnerId`) | `IN_AUCTION` hoặc `RESERVED` | `READY` | `event.aggregateVersion` | Xóa `reservedAuctionId = NULL` và `reservationSnapshot = NULL` (để đấu giá lại) | Nếu đã `SOLD` / `READY` hoặc version không lớn hơn → **Ignore** |
+
+### Quy tắc Version và Điều kiện Ignore
+
+1. **Điều kiện xử lý chung**:
+   - `product.reservedAuctionId == payload.auctionId`
+   - `event.aggregateVersion > product.lastAuctionVersion`
+2. **Nguyên tắc Ignore**:
+   - Event lạ (không có product nào giữ `auctionId` đó) hoặc event cũ/trùng (`aggregateVersion <= product.lastAuctionVersion`) → **Ignore**: Consumer return bình thường, không throw, không vào DLQ. Platform vẫn ghi nhận `ProcessedEvent`.
+   - Payload hỏng vĩnh viễn (thiếu trường bắt buộc, sai kiểu dữ liệu) → ném `PermanentMessageError` để platform đưa thẳng vào DLQ.
+   - Lỗi DB hoặc dependency tạm thời → ném `Error` thông thường để rollback transaction (bao gồm cả `ProcessedEvent`) và kích hoạt retry.
+3. **Thứ tự đảo (`ended` đến trước `started`)**:
+   - Trường hợp mạng hoặc retry khiến `auction.ended` (version 2) đến trước `auction.started` (version 1): `auction.ended` chấp nhận cả trạng thái nguồn `RESERVED` và nâng `lastAuctionVersion = 2`.
+   - Khi `auction.started` đến sau với version 1: do `1 <= lastAuctionVersion (2)` (và trạng thái hiện tại không còn là `RESERVED`), `auction.started` bị bỏ qua hoàn toàn, bảo đảm không kéo sản phẩm ngược lại `IN_AUCTION`.
+   - Replay event cũ của phiên đấu giá trước không ảnh hưởng đến sản phẩm đã được đặt cho phiên đấu giá mới (vì `reservedAuctionId` không khớp hoặc version không thỏa mãn).
+
+### Ví dụ Event Payload
+
+#### `auction.started`
+```json
+{
+  "eventId": "10000000-0000-4000-8000-000000000001",
+  "eventName": "auction.started",
+  "schemaVersion": 1,
+  "occurredAt": "2026-11-11T10:00:00.000Z",
+  "producer": "auction",
+  "aggregateId": "11111111-1111-4111-8111-111111111111",
+  "aggregateVersion": 1,
+  "correlationId": "20000000-0000-4000-8000-000000000001",
+  "payload": {
+    "auctionId": "11111111-1111-4111-8111-111111111111",
+    "productId": "22222222-2222-4222-8222-222222222222",
+    "sellerId": "33333333-3333-4333-8333-333333333333",
+    "startTime": "2026-11-11T10:00:00.000Z",
+    "endTime": "2026-11-11T11:00:00.000Z"
+  }
+}
+```
+
+#### `auction.ended` (Có Winner)
+```json
+{
+  "eventId": "10000000-0000-4000-8000-000000000002",
+  "eventName": "auction.ended",
+  "schemaVersion": 1,
+  "occurredAt": "2026-11-11T11:00:00.000Z",
+  "producer": "auction",
+  "aggregateId": "11111111-1111-4111-8111-111111111111",
+  "aggregateVersion": 2,
+  "correlationId": "20000000-0000-4000-8000-000000000002",
+  "payload": {
+    "auctionId": "11111111-1111-4111-8111-111111111111",
+    "productId": "22222222-2222-4222-8222-222222222222",
+    "productTitle": "Máy ảnh film",
+    "productThumbnail": "https://cdn.example.test/camera.jpg",
+    "sellerId": "33333333-3333-4333-8333-333333333333",
+    "winnerId": "44444444-4444-4444-8444-444444444444",
+    "finalPrice": "1500000",
+    "currency": "VND",
+    "endedAt": "2026-11-11T11:00:00.000Z"
+  }
+}
+```
+
+#### `auction.ended` (Không có Winner - Trả về `READY`)
+```json
+{
+  "eventId": "10000000-0000-4000-8000-000000000003",
+  "eventName": "auction.ended",
+  "schemaVersion": 1,
+  "occurredAt": "2026-11-11T11:00:00.000Z",
+  "producer": "auction",
+  "aggregateId": "11111111-1111-4111-8111-111111111111",
+  "aggregateVersion": 2,
+  "correlationId": "20000000-0000-4000-8000-000000000003",
+  "payload": {
+    "auctionId": "11111111-1111-4111-8111-111111111111",
+    "productId": "22222222-2222-4222-8222-222222222222",
+    "productTitle": "Máy ảnh film",
+    "productThumbnail": "https://cdn.example.test/camera.jpg",
+    "sellerId": "33333333-3333-4333-8333-333333333333",
+    "winnerId": null,
+    "finalPrice": null,
+    "currency": "VND",
+    "endedAt": "2026-11-11T11:00:00.000Z"
+  }
+}
+```
+
 ## Kết nối sẵn có
 
 - PrismaService riêng trong `src/prisma`; schema/migration dưới `prisma/`.
@@ -150,10 +249,10 @@ Host entrypoint dùng role riêng từ `PRODUCT_DB_USER/PASSWORD`; không copy s
 - [x] Viết Category CRUD với phân trang/tìm kiếm và chỉ ADMIN được ghi.
 - [x] Viết Product CRUD, ownership, trạng thái và quy tắc ảnh.
 - [x] Reservation phải cập nhật nguyên tử và idempotent theo auctionId; reset lastAuctionVersion khi giữ sản phẩm cho phiên mới.
-- [ ] Consumer lifecycle kiểm tra reservedAuctionId/version, tránh event cũ tác động phiên mới.
-- [ ] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
-- [ ] Test rollback, retry và event trùng nếu có consumer/producer.
-- [ ] Cập nhật ví dụ request/event và README khi thêm tính năng.
+- [x] Consumer lifecycle kiểm tra reservedAuctionId/version, tránh event cũ tác động phiên mới.
+- [x] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
+- [x] Test rollback, retry và event trùng nếu có consumer/producer.
+- [x] Cập nhật ví dụ request/event và README khi thêm tính năng.
 
 ## Kiểm thử và bàn giao
 
