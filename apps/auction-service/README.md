@@ -25,13 +25,106 @@ Nguồn chính: [OpenAPI](../../contracts/openapi/auction.json). Dev cung cấp 
 |---|---|---|---|
 | `GET /api/auction/health` | `auction_get__api_auction_health` | public  | completed |
 | `GET /internal/auction/dependencies` | `auction_get__internal_auction_dependencies` | internal  | completed |
-| `GET /api/auctions` | `auction_get__api_auctions` | public  | planned |
+| `GET /api/auctions` | `auction_get__api_auctions` | public  | implemented |
 | `POST /api/auctions` | `auction_post__api_auctions` | bearer SELLER | planned |
-| `GET /api/auctions/{id}` | `auction_get__api_auctions_id` | public  | planned |
-| `GET /api/auctions/{id}/bids` | `auction_get__api_auctions_id_bids` | public  | planned |
+| `GET /api/auctions/{id}` | `auction_get__api_auctions_id` | public  | implemented |
+| `GET /api/auctions/{id}/bids` | `auction_get__api_auctions_id_bids` | public  | implemented |
 | `POST /api/auctions/{id}/bids` | `auction_post__api_auctions_id_bids` | bearer USER,SELLER | planned |
 
-Completed là code thật. Planned trả 501 khi chưa đăng ký handler. Demo internal chỉ bật dev/test và ghi PlatformProbe, chưa thay đổi bảng nghiệp vụ. Ownership phải kiểm tra trong handler, không chỉ dựa role.
+Completed là code thật. Implemented là handler nghiệp vụ đăng ký qua `src/service-handlers.ts`. Planned trả 501 khi chưa đăng ký handler. Demo internal chỉ bật dev/test và ghi PlatformProbe, chưa thay đổi bảng nghiệp vụ. Ownership phải kiểm tra trong handler, không chỉ dựa role.
+
+### Ví dụ API Đọc Auction (`[AUC-01]`)
+
+#### 1. Danh sách Auction công khai (`GET /api/auctions`)
+Route public không yêu cầu token. Hỗ trợ phân trang (`page`, `pageSize`), lọc `status` (`PENDING`, `ACTIVE`, `ENDED`), tìm kiếm `search` theo `productTitle`. Mặc định ẩn các trạng thái nội bộ `INITIALIZING` và `CANCELLED`.
+
+```http
+GET /api/auctions?page=1&pageSize=20&status=ACTIVE&search=Vintage HTTP/1.1
+Host: localhost:8080
+```
+
+Response 200:
+```json
+{
+  "items": [
+    {
+      "id": "20000000-0000-4000-8000-000000000001",
+      "productId": "30000000-0000-4000-8000-000000000001",
+      "sellerId": "10000000-0000-4000-8000-000000000002",
+      "productTitle": "Vintage Mechanical Watch",
+      "productThumbnail": "https://example.com/watch.jpg",
+      "startingPrice": "100000",
+      "currentPrice": "150000",
+      "bidIncrement": "10000",
+      "currency": "VND",
+      "startTime": "2026-11-10T10:00:00.000Z",
+      "endTime": "2026-11-12T10:00:00.000Z",
+      "status": "ACTIVE",
+      "version": 3,
+      "winnerId": null,
+      "finalPrice": null
+    }
+  ],
+  "page": 1,
+  "pageSize": 20,
+  "total": 1
+}
+```
+
+#### 2. Chi tiết Auction (`GET /api/auctions/{id}`)
+Route public không yêu cầu token. Trả về thông tin phiên đấu giá ở mọi trạng thái (kể cả `INITIALIZING` và `CANCELLED` để người bán theo dõi quá trình tạo). Trả về 404 nếu không tìm thấy auction.
+
+```http
+GET /api/auctions/20000000-0000-4000-8000-000000000001 HTTP/1.1
+Host: localhost:8080
+```
+
+Response 200:
+```json
+{
+  "id": "20000000-0000-4000-8000-000000000001",
+  "productId": "30000000-0000-4000-8000-000000000001",
+  "sellerId": "10000000-0000-4000-8000-000000000002",
+  "productTitle": "Vintage Mechanical Watch",
+  "productThumbnail": "https://example.com/watch.jpg",
+  "startingPrice": "100000",
+  "currentPrice": "150000",
+  "bidIncrement": "10000",
+  "currency": "VND",
+  "startTime": "2026-11-10T10:00:00.000Z",
+  "endTime": "2026-11-12T10:00:00.000Z",
+  "status": "ACTIVE",
+  "version": 3,
+  "winnerId": null,
+  "finalPrice": null
+}
+```
+
+#### 3. Danh sách lượt đặt giá (`GET /api/auctions/{id}/bids`)
+Route public không yêu cầu token. Phân trang (`page`, `pageSize`), sắp xếp mới nhất trước (`createdAt: desc`). Trả về 404 nếu auction không tồn tại.
+
+```http
+GET /api/auctions/20000000-0000-4000-8000-000000000001/bids?page=1&pageSize=20 HTTP/1.1
+Host: localhost:8080
+```
+
+Response 200:
+```json
+{
+  "items": [
+    {
+      "id": "40000000-0000-4000-8000-000000000001",
+      "auctionId": "20000000-0000-4000-8000-000000000001",
+      "bidderId": "10000000-0000-4000-8000-000000000003",
+      "amount": "150000",
+      "createdAt": "2026-11-10T11:00:00.000Z"
+    }
+  ],
+  "page": 1,
+  "pageSize": 20,
+  "total": 1
+}
+```
 
 ## Điểm viết nghiệp vụ
 
@@ -74,9 +167,9 @@ Host entrypoint dùng role riêng từ `AUCTION_DB_USER/PASSWORD`; không copy s
 - [ ] Viết INITIALIZING worker và scheduler có khả năng tiếp tục sau restart.
 - [ ] Khóa cùng dòng Auction khi bid/đóng phiên; kiểm tra thời gian database sau khóa.
 - [ ] Ghi bid/kết quả/outbox nguyên tử; dùng idempotency key.
-- [ ] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
+- [x] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
 - [ ] Test rollback, retry và event trùng nếu có consumer/producer.
-- [ ] Cập nhật ví dụ request/event và README khi thêm tính năng.
+- [x] Cập nhật ví dụ request/event và README khi thêm tính năng.
 
 ## Kiểm thử và bàn giao
 

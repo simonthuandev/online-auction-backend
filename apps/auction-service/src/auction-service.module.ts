@@ -3,9 +3,11 @@ import { ServiceHandlers } from './service-handlers.js';
 import { PlatformModule, PLATFORM_DB, type Transaction } from '@app/common';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { PrismaService } from './prisma/prisma.service.js';
+import { AuctionQueryModule } from './auction/query/auction-query.module.js';
 @Module({
   providers: [ServiceHandlers],
   imports: [
+    AuctionQueryModule,
     PlatformModule.register(PrismaModule, {
       provide: PLATFORM_DB,
       inject: [PrismaService],
