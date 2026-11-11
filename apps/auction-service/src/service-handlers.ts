@@ -6,6 +6,7 @@ import {
 import { HttpHandlers, EventHandlers, type AuthRequest } from '@app/common';
 import { AuctionQueryService } from './auction/query/auction-query.service.js';
 import { AuctionCreateService } from './auction/create/auction-create.service.js';
+import { AuctionBidService } from './auction/bid/auction-bid.service.js';
 
 /** Register service-owned business handlers here; infrastructure is already wired. */
 @Injectable()
@@ -15,6 +16,7 @@ export class ServiceHandlers implements OnModuleInit {
     private readonly events: EventHandlers,
     private readonly auctionQuery: AuctionQueryService,
     private readonly auctionCreate: AuctionCreateService,
+    private readonly auctionBid: AuctionBidService,
   ) {}
 
   onModuleInit() {
@@ -49,6 +51,27 @@ export class ServiceHandlers implements OnModuleInit {
         return this.auctionQuery.getAuctionBids(
           String(request.params.id),
           request.query || {},
+        );
+      },
+    );
+
+    this.http.register(
+      'auction_post__api_auctions_id_bids',
+      async (request: AuthRequest) => {
+        const bidderId = request.principal?.sub;
+        if (!bidderId) {
+          throw new UnauthorizedException('Unauthenticated');
+        }
+        const idempotencyKey = String(
+          request.headers['idempotency-key'] ||
+            request.headers['Idempotency-Key'] ||
+            '',
+        );
+        return this.auctionBid.placeBid(
+          bidderId,
+          String(request.params.id),
+          idempotencyKey,
+          request.body,
         );
       },
     );
