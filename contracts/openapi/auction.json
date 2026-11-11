@@ -187,7 +187,7 @@
         "x-backend-path": "/auctions",
         "x-auth": "public",
         "x-roles": [],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",
@@ -455,7 +455,7 @@
         "x-backend-path": "/auctions/{id}",
         "x-auth": "public",
         "x-roles": [],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",
@@ -547,7 +547,7 @@
         "x-backend-path": "/auctions/{id}/bids",
         "x-auth": "public",
         "x-roles": [],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "200": {
             "description": "Success",
