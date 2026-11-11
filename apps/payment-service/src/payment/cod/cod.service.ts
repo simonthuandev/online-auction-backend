@@ -131,6 +131,9 @@ export class CodService {
                 payment.id,
             );
 
+            const isUuid = (val?: string) =>
+                Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
+
             // Phát sự kiện payment.succeeded vào Outbox cùng transaction
             const event: IntegrationEvent = {
                 eventId: randomUUID(),
@@ -140,7 +143,7 @@ export class CodService {
                 producer: 'payment',
                 aggregateId: payment.id,
                 aggregateVersion: 1,
-                correlationId: correlationId || randomUUID(),
+                correlationId: isUuid(correlationId) ? correlationId! : randomUUID(),
                 payload: {
                     paymentId: payment.id,
                     orderId: payment.orderId,

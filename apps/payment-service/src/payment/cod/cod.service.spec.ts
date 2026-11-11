@@ -155,7 +155,7 @@ describe('CodService', () => {
             return cb(mockTx);
         });
 
-        const result = await service.confirmCodPayment(paymentId, mockAdmin, 'corr-test');
+        const result = await service.confirmCodPayment(paymentId, mockAdmin, randomUUID());
 
         expect(result.id).toBe(paymentId);
         expect(result.status).toBe('SUCCESS');
