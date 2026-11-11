@@ -168,6 +168,38 @@ Response 202:
 }
 ```
 
+### Vòng đời Auction & Sự kiện Outbox (`[AUC-03]`)
+
+`AuctionLifecycleScheduler` chạy định kỳ (mỗi ~1s), dùng `FOR UPDATE SKIP LOCKED` để tránh tranh chấp giữa các worker instance:
+- **`PENDING` → `ACTIVE`**: Khi `startTime <= timezone('UTC', now())`, cập nhật `version = version + 1`, ghi outbox event `auction.started`, sau commit phát socket `auction:status_changed` (`status: ACTIVE`, `version`).
+- **`ACTIVE` → `ENDED`**: Khi `endTime <= timezone('UTC', now())`, xác định `winnerId = leadingBidderId` và `finalPrice = currentPrice` (nếu không có bid thì cả hai là `null`), cập nhật `version = version + 1`, ghi outbox event `auction.ended`, sau commit phát socket `auction:status_changed` (`status: ENDED`, `version`).
+- **Phục hồi sau restart**: Các auction quá hạn trong thời gian server dừng sẽ được kích hoạt lần lượt `started` (v1) rồi `ended` (v2) tuần tự theo đúng version.
+
+Ví dụ payload event `auction.ended`:
+```json
+{
+  "eventId": "e1f2a3b4-c5d6-7890-abcd-ef1234567890",
+  "eventName": "auction.ended",
+  "schemaVersion": 1,
+  "occurredAt": "2026-11-12T10:00:00.000Z",
+  "producer": "auction",
+  "aggregateId": "20000000-0000-4000-8000-000000000001",
+  "aggregateVersion": 2,
+  "correlationId": "c1d2e3f4-a5b6-7890-abcd-ef1234567890",
+  "payload": {
+    "auctionId": "20000000-0000-4000-8000-000000000001",
+    "productId": "30000000-0000-4000-8000-000000000001",
+    "productTitle": "Vintage Mechanical Watch",
+    "productThumbnail": "https://example.com/watch.jpg",
+    "sellerId": "10000000-0000-4000-8000-000000000002",
+    "winnerId": "10000000-0000-4000-8000-000000000003",
+    "finalPrice": "150000",
+    "currency": "VND",
+    "endedAt": "2026-11-12T10:00:00.000Z"
+  }
+}
+```
+
 ## Điểm viết nghiệp vụ
 
 `src/service-handlers.ts` đã được đưa vào module. Đăng ký `HttpHandlers.register(operationId, handler)` và `EventHandlers.register(eventName, handler)` ở đây, rồi delegate tới application service/repository của bạn. HTTP validation, token và role đã chạy trước handler.
@@ -206,11 +238,11 @@ Host entrypoint dùng role riêng từ `AUCTION_DB_USER/PASSWORD`; không copy s
 
 ## Checklist nghiệp vụ cần làm
 
-- [ ] Viết INITIALIZING worker và scheduler có khả năng tiếp tục sau restart.
-- [ ] Khóa cùng dòng Auction khi bid/đóng phiên; kiểm tra thời gian database sau khóa.
+- [x] Viết INITIALIZING worker và scheduler có khả năng tiếp tục sau restart.
+- [x] Khóa cùng dòng Auction khi bid/đóng phiên; kiểm tra thời gian database sau khóa.
 - [ ] Ghi bid/kết quả/outbox nguyên tử; dùng idempotency key.
 - [x] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
-- [ ] Test rollback, retry và event trùng nếu có consumer/producer.
+- [x] Test rollback, retry và event trùng nếu có consumer/producer.
 - [x] Cập nhật ví dụ request/event và README khi thêm tính năng.
 
 ## Kiểm thử và bàn giao
