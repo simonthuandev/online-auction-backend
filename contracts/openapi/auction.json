@@ -311,7 +311,7 @@
         "x-roles": [
           "SELLER"
         ],
-        "x-implementation": "planned",
+        "x-implementation": "implemented",
         "responses": {
           "202": {
             "description": "Success",

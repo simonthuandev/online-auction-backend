@@ -26,7 +26,7 @@ Nguồn chính: [OpenAPI](../../contracts/openapi/auction.json). Dev cung cấp 
 | `GET /api/auction/health` | `auction_get__api_auction_health` | public  | completed |
 | `GET /internal/auction/dependencies` | `auction_get__internal_auction_dependencies` | internal  | completed |
 | `GET /api/auctions` | `auction_get__api_auctions` | public  | implemented |
-| `POST /api/auctions` | `auction_post__api_auctions` | bearer SELLER | planned |
+| `POST /api/auctions` | `auction_post__api_auctions` | bearer SELLER | implemented |
 | `GET /api/auctions/{id}` | `auction_get__api_auctions_id` | public  | implemented |
 | `GET /api/auctions/{id}/bids` | `auction_get__api_auctions_id_bids` | public  | implemented |
 | `POST /api/auctions/{id}/bids` | `auction_post__api_auctions_id_bids` | bearer USER,SELLER | planned |
@@ -123,6 +123,48 @@ Response 200:
   "page": 1,
   "pageSize": 20,
   "total": 1
+}
+```
+
+### Ví dụ API Tạo Auction & Worker Reservation (`[AUC-02]`)
+
+#### Tạo phiên đấu giá (`POST /api/auctions`)
+Route yêu cầu quyền `SELLER` và header `Idempotency-Key`. Tạo Auction ở trạng thái `INITIALIZING`, trả về **202 Accepted**. Worker nền sẽ quét các auction `INITIALIZING`, gọi internal reservation sang `product-service` để chuyển sang `PENDING`.
+
+```http
+POST /api/auctions HTTP/1.1
+Host: localhost:8080
+Authorization: Bearer <sellerAccessToken>
+Idempotency-Key: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+Content-Type: application/json
+
+{
+  "productId": "30000000-0000-4000-8000-000000000001",
+  "startingPrice": "100000",
+  "bidIncrement": "10000",
+  "startTime": "2026-11-12T10:00:00.000Z",
+  "endTime": "2026-11-14T10:00:00.000Z"
+}
+```
+
+Response 202:
+```json
+{
+  "id": "20000000-0000-4000-8000-000000000001",
+  "productId": "30000000-0000-4000-8000-000000000001",
+  "sellerId": "10000000-0000-4000-8000-000000000002",
+  "productTitle": null,
+  "productThumbnail": null,
+  "startingPrice": "100000",
+  "currentPrice": "100000",
+  "bidIncrement": "10000",
+  "currency": "VND",
+  "startTime": "2026-11-12T10:00:00.000Z",
+  "endTime": "2026-11-14T10:00:00.000Z",
+  "status": "INITIALIZING",
+  "version": 0,
+  "winnerId": null,
+  "finalPrice": null
 }
 ```
 
