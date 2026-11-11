@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
 import { HttpHandlers, EventHandlers } from '@app/common';
 import { PaymentService } from './payment/payment.service.js';
+import { CodService } from './payment/cod/cod.service.js';
 /** Register service-owned business handlers here; infrastructure is already wired. */
 @Injectable()
 export class ServiceHandlers implements OnModuleInit {
@@ -8,6 +9,7 @@ export class ServiceHandlers implements OnModuleInit {
     private readonly http: HttpHandlers,
     private readonly events: EventHandlers,
     private readonly paymentService: PaymentService,
+    private readonly codService: CodService,
   ) { }
   onModuleInit() {
     // this.http.register('<operationId from contracts/openapi/payment.json>', async request => { ... });
@@ -18,8 +20,8 @@ export class ServiceHandlers implements OnModuleInit {
     this.http.register('payment_post__api_payments', async (request) => {
       const idempotencyKey = String(
         request.headers['idempotency-key'] ||
-          request.headers['Idempotency-Key'] ||
-          '',
+        request.headers['Idempotency-Key'] ||
+        '',
       );
       if (!idempotencyKey) {
         throw new BadRequestException('Idempotency-Key header is required');
@@ -40,6 +42,14 @@ export class ServiceHandlers implements OnModuleInit {
       const orderId = String(request.params.orderId);
       const principal = request.principal!;
       return this.paymentService.getPaymentByOrderId(orderId, principal);
+    });
+
+    // [POST] /api/payments/{id}/cod/confirm (PAY-03)
+    this.http.register('payment_post__api_payments_id_cod_confirm', async (request) => {
+      const paymentId = String(request.params.id);
+      const principal = request.principal!;
+      const correlationId = request.requestId;
+      return this.codService.confirmCodPayment(paymentId, principal, correlationId);
     });
   }
 }
