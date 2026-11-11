@@ -5,10 +5,11 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { PrismaService } from './prisma/prisma.service.js';
 import { PaymentService } from './payment/payment.service.js';
 import { VnpayGateway } from './payment/vnpay.gateway.js';
+import { CodService } from './payment/cod/cod.service.js';
 
 @Module({
-  providers: [ServiceHandlers, PaymentService, VnpayGateway],
-  exports: [PaymentService, VnpayGateway],
+  providers: [ServiceHandlers, PaymentService, VnpayGateway, CodService],
+  exports: [PaymentService, VnpayGateway, CodService],
   imports: [
     PrismaModule,
     PlatformModule.register(PrismaModule, {
