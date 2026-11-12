@@ -12,6 +12,10 @@ export type AuctionEndedEvent = Extract<
   IntegrationEvent,
   { eventName: 'auction.ended' }
 >;
+export type PaymentSucceededEvent = Extract<
+  IntegrationEvent,
+  { eventName: 'payment.succeeded' }
+>;
 
 export interface NotificationDraft {
   userId: string;
@@ -185,4 +189,93 @@ export function buildNotificationsFromAuctionEnded(
   }
 
   return drafts;
+}
+
+/**
+ * Hàm thuần tạo bản nháp thông báo từ sự kiện payment.succeeded:
+ * - Tạo đúng 1 thông báo PAYMENT_SUCCESS cho người mua (userId).
+ * - metadata CHỈ gồm: orderId, paymentId, paymentMethod.
+ * - Tuyệt đối không chứa: transactionId, providerResponse, token/chữ ký, mã tham chiếu nhà cung cấp hay bí mật thanh toán.
+ * - Hỗ trợ cả 2 phương thức COD và VNPAY.
+ * - Lỗi thiếu trường bắt buộc hoặc sai phương thức -> ném PermanentMessageError.
+ */
+export function buildNotificationsFromPaymentSucceeded(
+  event: IntegrationEvent,
+): NotificationDraft[] {
+  if (!event || typeof event !== 'object') {
+    throw new PermanentMessageError('INVALID_EVENT: Event is missing');
+  }
+  if (event.eventName !== 'payment.succeeded') {
+    throw new PermanentMessageError(
+      `INVALID_EVENT_NAME: Expected payment.succeeded but got ${event.eventName}`,
+    );
+  }
+
+  const payload = (event as PaymentSucceededEvent).payload;
+  if (!payload || typeof payload !== 'object') {
+    throw new PermanentMessageError('INVALID_EVENT_PAYLOAD: Payload is missing');
+  }
+
+  const {
+    paymentId,
+    orderId,
+    userId,
+    amount,
+    currency,
+    paymentMethod,
+    transactionId,
+    paidAt,
+  } = payload;
+
+  if (
+    !paymentId ||
+    typeof paymentId !== 'string' ||
+    !paymentId.trim() ||
+    !orderId ||
+    typeof orderId !== 'string' ||
+    !orderId.trim() ||
+    !userId ||
+    typeof userId !== 'string' ||
+    !userId.trim() ||
+    !amount ||
+    typeof amount !== 'string' ||
+    !amount.trim() ||
+    currency !== 'VND' ||
+    !paymentMethod ||
+    !transactionId ||
+    typeof transactionId !== 'string' ||
+    !transactionId.trim() ||
+    !paidAt ||
+    typeof paidAt !== 'string' ||
+    !paidAt.trim()
+  ) {
+    throw new PermanentMessageError(
+      'INVALID_EVENT_PAYLOAD: Missing required fields in payment.succeeded',
+    );
+  }
+
+  if (paymentMethod !== 'COD' && paymentMethod !== 'VNPAY') {
+    throw new PermanentMessageError(
+      `INVALID_EVENT_PAYLOAD: Unsupported paymentMethod ${String(paymentMethod)}`,
+    );
+  }
+
+  const message =
+    paymentMethod === 'COD'
+      ? 'Đơn hàng của bạn đã được xác nhận thanh toán thành công (COD - Tiền mặt khi nhận hàng).'
+      : 'Đơn hàng của bạn đã được thanh toán thành công qua VNPAY.';
+
+  return [
+    {
+      userId,
+      type: 'PAYMENT_SUCCESS',
+      title: 'Thanh toán thành công',
+      message,
+      metadata: {
+        orderId,
+        paymentId,
+        paymentMethod,
+      },
+    },
+  ];
 }

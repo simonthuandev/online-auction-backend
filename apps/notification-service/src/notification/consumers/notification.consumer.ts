@@ -8,6 +8,7 @@ import {
 import {
   buildNotificationsFromBidPlaced,
   buildNotificationsFromAuctionEnded,
+  buildNotificationsFromPaymentSucceeded,
   type NotificationDraft,
 } from './notification-event.builder.js';
 import { toNotificationResponse } from '../notification.mapper.js';
@@ -52,16 +53,19 @@ export class NotificationConsumer {
   }
 
   /**
-   * Handler tạm thời no-op cho payment.succeeded.
-   * TODO NOTIF-03: Triển khai lưu thông báo PAYMENT_SUCCESS khi thanh toán thành công.
+   * Xử lý sự kiện payment.succeeded:
+   * Tạo thông báo PAYMENT_SUCCESS cho người mua (userId).
    */
   async handlePaymentSucceeded(
-    _tx: Transaction,
+    tx: Transaction,
     event: IntegrationEvent,
-  ): Promise<void> {
-    this.logger.log(
-      `[TODO NOTIF-03] Received payment.succeeded event ${event.eventId} (aggregateId: ${event.aggregateId}). No-op handler for NOTIF-02.`,
-    );
+  ): Promise<(() => void) | void> {
+    if ((event as { demo?: unknown }).demo) {
+      return;
+    }
+
+    const drafts = buildNotificationsFromPaymentSucceeded(event);
+    return this.persistAndDispatch(tx, event.eventId, drafts);
   }
 
   /**

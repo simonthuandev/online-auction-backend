@@ -4,7 +4,8 @@ import {
   Realtime,
   type IntegrationEvent,
   type Transaction,
-} from '@app/common';
+  PermanentMessageError,
+} from '../../../../../libs/common/src/index.js';
 import { NotificationConsumer } from './notification.consumer.js';
 import type { NotificationRecord } from '../notification.repository.js';
 
@@ -325,34 +326,167 @@ describe('NotificationConsumer Unit Tests', () => {
   });
 
   describe('handlePaymentSucceeded', () => {
-    it('là handler no-op có log, không ghi DB hay phát socket (chờ NOTIF-03)', async () => {
-      const paymentEvent: PaymentSucceededEvent = {
-        eventId: randomUUID(),
-        eventName: 'payment.succeeded',
-        schemaVersion: 1,
-        occurredAt: '2026-11-10T12:00:00.000Z',
-        producer: 'payment',
-        aggregateId: randomUUID(),
-        aggregateVersion: 1,
-        correlationId: randomUUID(),
-        payload: {
-          paymentId: randomUUID(),
-          orderId: randomUUID(),
-          userId: randomUUID(),
-          amount: '1000000',
-          currency: 'VND',
+    const validPaymentEvent: PaymentSucceededEvent = {
+      eventId: '40000000-0000-4000-8000-000000000001',
+      eventName: 'payment.succeeded',
+      schemaVersion: 1,
+      occurredAt: '2026-11-12T10:00:00.000Z',
+      producer: 'payment',
+      aggregateId: '20000000-0000-4000-8000-000000000001',
+      aggregateVersion: 1,
+      correlationId: randomUUID(),
+      payload: {
+        paymentId: '20000000-0000-4000-8000-000000000001',
+        orderId: '30000000-0000-4000-8000-000000000001',
+        userId: 'buyer-01',
+        amount: '1000000',
+        currency: 'VND',
+        paymentMethod: 'VNPAY',
+        transactionId: 'TXN123',
+        paidAt: '2026-11-12T10:00:00.000Z',
+      },
+    };
+
+    it('thực hiện INSERT vào DB với type = PAYMENT_SUCCESS và trả về callback phát socket', async () => {
+      const insertedRecord: NotificationRecord = {
+        id: randomUUID(),
+        userId: 'buyer-01',
+        sourceEventId: validPaymentEvent.eventId,
+        title: 'Thanh toán thành công',
+        message: 'Đơn hàng của bạn đã được thanh toán thành công qua VNPAY.',
+        type: 'PAYMENT_SUCCESS',
+        isRead: false,
+        metadata: {
+          orderId: validPaymentEvent.payload.orderId,
+          paymentId: validPaymentEvent.payload.paymentId,
           paymentMethod: 'VNPAY',
-          transactionId: 'TXN123',
-          paidAt: '2026-11-10T12:00:00.000Z',
+        },
+        createdAt: new Date('2026-11-12T10:00:01.000Z'),
+      };
+
+      vi.mocked(mockTx.query).mockResolvedValueOnce([insertedRecord]);
+
+      const callback = await consumer.handlePaymentSucceeded(mockTx, validPaymentEvent);
+
+      expect(mockTx.query).toHaveBeenCalledTimes(1);
+      const [sql, ...params] = vi.mocked(mockTx.query).mock.calls[0];
+      expect(sql).toContain('INSERT INTO "Notification"');
+      expect(sql).toContain('ON CONFLICT ("sourceEventId", "userId", "type") DO NOTHING');
+      expect(params[1]).toBe('buyer-01');
+      expect(params[2]).toBe(validPaymentEvent.eventId);
+      expect(params[5]).toBe('PAYMENT_SUCCESS');
+
+      // Callback chưa chạy -> socket chưa được gọi
+      expect(mockRealtime.publishNotification).not.toHaveBeenCalled();
+
+      // Khi commit xong -> gọi callback phát socket
+      expect(typeof callback).toBe('function');
+      callback!();
+
+      expect(mockRealtime.publishNotification).toHaveBeenCalledTimes(1);
+      expect(mockRealtime.publishNotification).toHaveBeenCalledWith('buyer-01', {
+        id: insertedRecord.id,
+        userId: 'buyer-01',
+        title: 'Thanh toán thành công',
+        message: 'Đơn hàng của bạn đã được thanh toán thành công qua VNPAY.',
+        type: 'PAYMENT_SUCCESS',
+        isRead: false,
+        metadata: {
+          orderId: validPaymentEvent.payload.orderId,
+          paymentId: validPaymentEvent.payload.paymentId,
+          paymentMethod: 'VNPAY',
+        },
+        createdAt: '2026-11-12T10:00:01.000Z',
+      });
+    });
+
+    it('hỗ trợ phương thức thanh toán COD', async () => {
+      const codEvent: PaymentSucceededEvent = {
+        ...validPaymentEvent,
+        payload: {
+          ...validPaymentEvent.payload,
+          paymentMethod: 'COD',
+          transactionId: 'COD_RECEIPT_888',
+        },
+      };
+
+      const insertedRecord: NotificationRecord = {
+        id: randomUUID(),
+        userId: 'buyer-01',
+        sourceEventId: codEvent.eventId,
+        title: 'Thanh toán thành công',
+        message: 'Đơn hàng của bạn đã được xác nhận thanh toán thành công (COD - Tiền mặt khi nhận hàng).',
+        type: 'PAYMENT_SUCCESS',
+        isRead: false,
+        metadata: {
+          orderId: codEvent.payload.orderId,
+          paymentId: codEvent.payload.paymentId,
+          paymentMethod: 'COD',
+        },
+        createdAt: new Date('2026-11-12T10:00:01.000Z'),
+      };
+
+      vi.mocked(mockTx.query).mockResolvedValueOnce([insertedRecord]);
+
+      const callback = await consumer.handlePaymentSucceeded(mockTx, codEvent);
+      expect(typeof callback).toBe('function');
+      callback!();
+
+      expect(mockRealtime.publishNotification).toHaveBeenCalledTimes(1);
+      expect(mockRealtime.publishNotification).toHaveBeenCalledWith('buyer-01', expect.objectContaining({
+        type: 'PAYMENT_SUCCESS',
+        metadata: expect.objectContaining({ paymentMethod: 'COD' }),
+      }));
+    });
+
+    it('idempotent: khi nhận lại cùng event (replay) -> DB trả về 0 dòng và không phát socket', async () => {
+      // Giả lập ON CONFLICT DO NOTHING -> 0 dòng được insert
+      vi.mocked(mockTx.query).mockResolvedValueOnce([]);
+
+      const callback = await consumer.handlePaymentSucceeded(mockTx, validPaymentEvent);
+
+      expect(mockTx.query).toHaveBeenCalledTimes(1);
+      expect(callback).toBeUndefined();
+      expect(mockRealtime.publishNotification).not.toHaveBeenCalled();
+    });
+
+    it('bỏ qua xử lý khi là demo event', async () => {
+      const demoEvent = {
+        ...validPaymentEvent,
+        demo: { runId: randomUUID() },
+      };
+
+      const result = await consumer.handlePaymentSucceeded(mockTx, demoEvent as any);
+
+      expect(result).toBeUndefined();
+      expect(mockTx.query).not.toHaveBeenCalled();
+      expect(mockRealtime.publishNotification).not.toHaveBeenCalled();
+    });
+
+    it('ném lỗi khi DB query thất bại để transaction rollback và retry', async () => {
+      vi.mocked(mockTx.query).mockRejectedValueOnce(new Error('DATABASE_CONNECTION_LOST'));
+
+      await expect(
+        consumer.handlePaymentSucceeded(mockTx, validPaymentEvent),
+      ).rejects.toThrow('DATABASE_CONNECTION_LOST');
+
+      expect(mockRealtime.publishNotification).not.toHaveBeenCalled();
+    });
+
+    it('ném PermanentMessageError khi payload thiếu trường bắt buộc', async () => {
+      const invalidEvent = {
+        ...validPaymentEvent,
+        payload: {
+          ...validPaymentEvent.payload,
+          userId: '',
         },
       };
 
       await expect(
-        consumer.handlePaymentSucceeded(mockTx, paymentEvent),
-      ).resolves.toBeUndefined();
+        consumer.handlePaymentSucceeded(mockTx, invalidEvent as any),
+      ).rejects.toThrow(PermanentMessageError);
 
       expect(mockTx.query).not.toHaveBeenCalled();
-      expect(mockRealtime.publishNotification).not.toHaveBeenCalled();
     });
   });
 });

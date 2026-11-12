@@ -7,10 +7,12 @@ import {
 import {
   buildNotificationsFromBidPlaced,
   buildNotificationsFromAuctionEnded,
+  buildNotificationsFromPaymentSucceeded,
 } from './notification-event.builder.js';
 
 type BidPlacedEvent = Extract<IntegrationEvent, { eventName: 'bid.placed' }>;
 type AuctionEndedEvent = Extract<IntegrationEvent, { eventName: 'auction.ended' }>;
+type PaymentSucceededEvent = Extract<IntegrationEvent, { eventName: 'payment.succeeded' }>;
 
 describe('notification-event.builder (Hàm thuần dựng thông báo từ event)', () => {
   describe('buildNotificationsFromBidPlaced', () => {
@@ -231,6 +233,165 @@ describe('notification-event.builder (Hàm thuần dựng thông báo từ event
       expect(() => buildNotificationsFromAuctionEnded(missingFieldEvent)).toThrow(
         PermanentMessageError,
       );
+    });
+  });
+
+  describe('buildNotificationsFromPaymentSucceeded', () => {
+    const validPaymentEvent: PaymentSucceededEvent = {
+      eventId: '40000000-0000-4000-8000-000000000001',
+      eventName: 'payment.succeeded',
+      schemaVersion: 1,
+      occurredAt: '2026-11-12T10:00:00.000Z',
+      producer: 'payment',
+      aggregateId: '20000000-0000-4000-8000-000000000001',
+      aggregateVersion: 1,
+      correlationId: '50000000-0000-4000-8000-000000000001',
+      payload: {
+        paymentId: '20000000-0000-4000-8000-000000000001',
+        orderId: '30000000-0000-4000-8000-000000000001',
+        userId: '10000000-0000-4000-8000-000000000001',
+        amount: '1500000',
+        currency: 'VND',
+        paymentMethod: 'VNPAY',
+        transactionId: 'VNPAY_SECRET_TXN_9999',
+        paidAt: '2026-11-12T10:00:00.000Z',
+      },
+    };
+
+    it('tạo đúng 1 thông báo PAYMENT_SUCCESS cho buyer (userId) với phương thức VNPAY', () => {
+      const drafts = buildNotificationsFromPaymentSucceeded(validPaymentEvent);
+
+      expect(drafts).toHaveLength(1);
+      const [draft] = drafts;
+      expect(draft.userId).toBe('10000000-0000-4000-8000-000000000001');
+      expect(draft.type).toBe('PAYMENT_SUCCESS');
+      expect(draft.title).toBe('Thanh toán thành công');
+      expect(draft.message).toContain('VNPAY');
+      expect(draft.metadata).toEqual({
+        orderId: '30000000-0000-4000-8000-000000000001',
+        paymentId: '20000000-0000-4000-8000-000000000001',
+        paymentMethod: 'VNPAY',
+      });
+    });
+
+    it('tạo thông báo PAYMENT_SUCCESS cho phương thức COD', () => {
+      const codEvent: PaymentSucceededEvent = {
+        ...validPaymentEvent,
+        payload: {
+          ...validPaymentEvent.payload,
+          paymentMethod: 'COD',
+          transactionId: 'COD_RECEIPT_123',
+        },
+      };
+
+      const drafts = buildNotificationsFromPaymentSucceeded(codEvent);
+
+      expect(drafts).toHaveLength(1);
+      const [draft] = drafts;
+      expect(draft.userId).toBe(validPaymentEvent.payload.userId);
+      expect(draft.type).toBe('PAYMENT_SUCCESS');
+      expect(draft.title).toBe('Thanh toán thành công');
+      expect(draft.message).toContain('COD');
+      expect(draft.metadata).toEqual({
+        orderId: validPaymentEvent.payload.orderId,
+        paymentId: validPaymentEvent.payload.paymentId,
+        paymentMethod: 'COD',
+      });
+    });
+
+    it('metadata chỉ có đúng 3 trường: orderId, paymentId, paymentMethod (không chứa transactionId, providerResponse, token, secret)', () => {
+      const drafts = buildNotificationsFromPaymentSucceeded(validPaymentEvent);
+      const [draft] = drafts;
+
+      const keys = Object.keys(draft.metadata);
+      expect(keys.sort()).toEqual(['orderId', 'paymentId', 'paymentMethod'].sort());
+
+      // Tuyệt đối không chứa transactionId hoặc thông tin nhạy cảm
+      expect(draft.metadata).not.toHaveProperty('transactionId');
+      expect(draft.metadata).not.toHaveProperty('providerResponse');
+      expect(draft.metadata).not.toHaveProperty('token');
+      expect(draft.metadata).not.toHaveProperty('signature');
+    });
+
+    it('nội dung tiếng Việt không để lộ transactionId hay dữ liệu nhạy cảm', () => {
+      const drafts = buildNotificationsFromPaymentSucceeded(validPaymentEvent);
+      const [draft] = drafts;
+
+      expect(draft.message).not.toContain('VNPAY_SECRET_TXN_9999');
+      expect(draft.title).not.toContain('VNPAY_SECRET_TXN_9999');
+      expect(JSON.stringify(draft.metadata)).not.toContain('VNPAY_SECRET_TXN_9999');
+    });
+
+    it('ném PermanentMessageError khi thiếu userId', () => {
+      const invalidEvent = {
+        ...validPaymentEvent,
+        payload: {
+          ...validPaymentEvent.payload,
+          userId: '',
+        },
+      };
+
+      expect(() => buildNotificationsFromPaymentSucceeded(invalidEvent as any)).toThrow(
+        PermanentMessageError,
+      );
+    });
+
+    it('ném PermanentMessageError khi thiếu orderId hoặc paymentId', () => {
+      const missingOrderId = {
+        ...validPaymentEvent,
+        payload: {
+          ...validPaymentEvent.payload,
+          orderId: '',
+        },
+      };
+      expect(() => buildNotificationsFromPaymentSucceeded(missingOrderId as any)).toThrow(
+        PermanentMessageError,
+      );
+
+      const missingPaymentId = {
+        ...validPaymentEvent,
+        payload: {
+          ...validPaymentEvent.payload,
+          paymentId: '',
+        },
+      };
+      expect(() => buildNotificationsFromPaymentSucceeded(missingPaymentId as any)).toThrow(
+        PermanentMessageError,
+      );
+    });
+
+    it('ném PermanentMessageError khi paymentMethod không hợp lệ', () => {
+      const invalidMethodEvent = {
+        ...validPaymentEvent,
+        payload: {
+          ...validPaymentEvent.payload,
+          paymentMethod: 'STRIPE' as never,
+        },
+      };
+
+      expect(() => buildNotificationsFromPaymentSucceeded(invalidMethodEvent as any)).toThrow(
+        PermanentMessageError,
+      );
+    });
+
+    it('ném PermanentMessageError khi sai eventName hoặc thiếu payload', () => {
+      expect(() =>
+        buildNotificationsFromPaymentSucceeded({
+          ...validPaymentEvent,
+          eventName: 'bid.placed' as never,
+        }),
+      ).toThrow(PermanentMessageError);
+
+      expect(() =>
+        buildNotificationsFromPaymentSucceeded({
+          ...validPaymentEvent,
+          payload: null as never,
+        }),
+      ).toThrow(PermanentMessageError);
+
+      expect(() =>
+        buildNotificationsFromPaymentSucceeded(null as never),
+      ).toThrow(PermanentMessageError);
     });
   });
 });
