@@ -3,6 +3,7 @@ import { CategoryService } from '../category/category.service.js';
 import { ServiceHandlers } from '../service-handlers.js';
 import { ProductService } from './product.service.js';
 import { ReservationService } from '../reservation/reservation.service.js';
+import { LifecycleConsumer } from '../lifecycle/lifecycle.consumer.js';
 import type { EventHandlers, HttpHandlers } from '@app/common';
 
 type TestRequest = {
@@ -17,12 +18,21 @@ describe('Product HTTP handlers', () => {
     string,
     (request: TestRequest) => Promise<unknown>
   >();
+  const registeredEvents = new Map<string, (tx: any, event: any) => Promise<unknown>>();
   const http = {
     register: vi.fn(
       (
         operationId: string,
         handler: (request: TestRequest) => Promise<unknown>,
       ) => registered.set(operationId, handler),
+    ),
+  };
+  const events = {
+    register: vi.fn(
+      (
+        eventName: string,
+        handler: (tx: any, event: any) => Promise<unknown>,
+      ) => registeredEvents.set(eventName, handler),
     ),
   };
   const categories = {};
@@ -36,16 +46,22 @@ describe('Product HTTP handlers', () => {
   const reservations = {
     reserve: vi.fn(),
   };
+  const lifecycle = {
+    handleAuctionStarted: vi.fn(),
+    handleAuctionEnded: vi.fn(),
+  };
 
   beforeEach(() => {
     registered.clear();
+    registeredEvents.clear();
     vi.clearAllMocks();
     new ServiceHandlers(
       http as unknown as HttpHandlers,
-      {} as EventHandlers,
+      events as unknown as EventHandlers,
       categories as unknown as CategoryService,
       products as unknown as ProductService,
       reservations as unknown as ReservationService,
+      lifecycle as unknown as LifecycleConsumer,
     ).onModuleInit();
   });
 
@@ -107,5 +123,21 @@ describe('Product HTTP handlers', () => {
       'auction-123',
       'seller-456',
     );
+  });
+
+  it('registers lifecycle event handlers for auction.started and auction.ended', async () => {
+    expect(registeredEvents.has('auction.started')).toBe(true);
+    expect(registeredEvents.has('auction.ended')).toBe(true);
+
+    const startedHandler = registeredEvents.get('auction.started')!;
+    const mockTx = {} as any;
+    const startedEvent = { eventName: 'auction.started' } as any;
+    await startedHandler(mockTx, startedEvent);
+    expect(lifecycle.handleAuctionStarted).toHaveBeenCalledWith(mockTx, startedEvent);
+
+    const endedHandler = registeredEvents.get('auction.ended')!;
+    const endedEvent = { eventName: 'auction.ended' } as any;
+    await endedHandler(mockTx, endedEvent);
+    expect(lifecycle.handleAuctionEnded).toHaveBeenCalledWith(mockTx, endedEvent);
   });
 });
