@@ -3,6 +3,7 @@ import type { EventHandlers, HttpHandlers } from '@app/common';
 import { BadRequestException } from '@nestjs/common';
 import { ServiceHandlers } from './service-handlers.js';
 import { PaymentService } from './payment/payment.service.js';
+import { CodService } from './payment/cod/cod.service.js';
 
 type TestRequest = {
   params: Record<string, string>;
@@ -33,6 +34,10 @@ describe('Payment HTTP handlers', () => {
     getPaymentByOrderId: vi.fn(),
   };
 
+  const codService = {
+    confirmCodPayment: vi.fn(),
+  };
+
   beforeEach(() => {
     registered.clear();
     vi.clearAllMocks();
@@ -40,14 +45,16 @@ describe('Payment HTTP handlers', () => {
       http as unknown as HttpHandlers,
       {} as EventHandlers,
       paymentService as unknown as PaymentService,
+      codService as unknown as CodService,
     ).onModuleInit();
   });
 
-  it('registers payment creation and order payment query operations from contract', () => {
+  it('registers payment creation, order payment query, and COD confirmation operations from contract', () => {
     expect(
       [
         'payment_post__api_payments',
         'payment_get__api_payments_order_orderId',
+        'payment_post__api_payments_id_cod_confirm',
       ].every((operationId) => registered.has(operationId)),
     ).toBe(true);
   });
@@ -127,6 +134,37 @@ describe('Payment HTTP handlers', () => {
     expect(paymentService.getPaymentByOrderId).toHaveBeenCalledWith(
       'ord-1',
       principal,
+    );
+  });
+
+  it('delegates payment_post__api_payments_id_cod_confirm to codService.confirmCodPayment', async () => {
+    const handler = registered.get('payment_post__api_payments_id_cod_confirm');
+    if (!handler) throw new Error('Handler not registered');
+
+    codService.confirmCodPayment.mockResolvedValue({
+      id: 'pay-1',
+      orderId: 'ord-1',
+      userId: 'buyer-1',
+      amount: '200000',
+      currency: 'VND',
+      status: 'SUCCESS',
+      paymentUrl: null,
+    });
+
+    const principal = { sub: 'admin-1', role: 'ADMIN' };
+    await handler({
+      params: { id: 'pay-1' },
+      query: {},
+      headers: {},
+      body: {},
+      principal,
+      requestId: 'req-corr-1',
+    });
+
+    expect(codService.confirmCodPayment).toHaveBeenCalledWith(
+      'pay-1',
+      principal,
+      'req-corr-1',
     );
   });
 });

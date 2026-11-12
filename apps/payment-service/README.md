@@ -26,7 +26,7 @@ Nguồn chính: [OpenAPI](../../contracts/openapi/payment.json). Dev cung cấp 
 | `GET /api/payment/health` | `payment_get__api_payment_health` | public  | completed |
 | `GET /internal/payment/dependencies` | `payment_get__internal_payment_dependencies` | internal  | completed |
 | `POST /api/payments` | `payment_post__api_payments` | bearer USER,SELLER | implemented |
-| `POST /api/payments/{id}/cod/confirm` | `payment_post__api_payments_id_cod_confirm` | bearer ADMIN | completed  |
+| `POST /api/payments/{id}/cod/confirm` | `payment_post__api_payments_id_cod_confirm` | bearer ADMIN | implemented |
 | `GET /api/payments/order/{orderId}` | `payment_get__api_payments_order_orderId` | bearer  | implemented |
 | `GET /api/payments/vnpay/ipn` | `payment_get__api_payments_vnpay_ipn` | public  | planned |
 | `GET /api/payments/vnpay/return` | `payment_get__api_payments_vnpay_return` | public  | planned |
@@ -73,10 +73,22 @@ Host entrypoint dùng role riêng từ `PAYMENT_DB_USER/PASSWORD`; không copy s
 
 ## Phương thức thanh toán đã chốt
 
-Chỉ có `COD` (tiền mặt khi nhận hàng) và `VNPAY`; đây là giá trị dùng thống nhất trong Prisma, REST và event contract. Nghiệp vụ vẫn chờ owner triển khai.
+Chỉ có `COD` (tiền mặt khi nhận hàng) và `VNPAY`; đây là giá trị dùng thống nhất trong Prisma, REST và event contract.
 
-- COD: tạo payment/attempt đang chờ; không tự đánh dấu SUCCESS khi buyer chọn phương thức. Owner phải thiết kế luồng xác nhận thu tiền có xác thực/ownership phù hợp và bổ sung contract trước khi triển khai. Chỉ sau xác nhận hợp lệ mới ghi SUCCESS và enqueue `payment.succeeded` cùng local transaction; `transactionId` dùng mã biên nhận nội bộ.
+- COD: tạo payment/attempt đang chờ; không tự đánh dấu SUCCESS khi buyer chọn phương thức. Luồng xác nhận thu tiền COD được thực hiện qua `POST /api/payments/{id}/cod/confirm` (chỉ dành cho `ADMIN`). Sau khi xác nhận hợp lệ, cập nhật trạng thái `SUCCESS` và enqueue `payment.succeeded` cùng local transaction; `transactionId` dùng mã biên nhận nội bộ (`COD-${attempt.providerReference}`).
 - VNPay: xác minh checksum/ref/amount ở IPN trước khi ghi nhận thành công. Return URL chỉ phục vụ hiển thị; không tin trạng thái do client gửi.
+
+### Xác nhận thanh toán COD (`POST /api/payments/{id}/cod/confirm`)
+
+- **Quyền hạn**: Endpoint bảo vệ bằng Bearer token, chỉ cho phép role `ADMIN`. Người dùng không có quyền ADMIN sẽ bị trả `403 Forbidden`.
+- **Đầu vào/Đầu ra**: Request không yêu cầu body, `{id}` là Payment ID. Phản hồi thành công `200 OK` với thông tin Payment đã cập nhật trạng thái `SUCCESS`.
+- **Xử lý giao dịch**:
+  1. Khóa Payment bằng `SELECT ... FOR UPDATE` để chống race condition.
+  2. Tìm `PaymentAttempt` phương thức COD đang `PENDING` chưa hết hạn. Nếu đã hết hạn thì đánh dấu `FAILED` và trả `409 Conflict`. Nếu không tìm thấy attempt hợp lệ trả `409 Conflict`.
+  3. Cập nhật `PaymentAttempt` và `Payment` sang `SUCCESS`. `paidAt` do server gán thời gian hiện tại (`new Date().toISOString()`), `transactionId` gán theo mẫu `COD-${attempt.providerReference}`.
+  4. Ghi outbox event `payment.succeeded` (`aggregateId = payment.id`, `aggregateVersion = 1`) trong cùng local transaction.
+- **Tính Idempotent**:
+  - Nếu gọi lại confirm trên Payment đã `SUCCESS` với COD, hệ thống trả về `200 OK` với Payment hiện tại và **không** phát thêm event thứ hai.
 
 Migration mới `20261026000000_payment_method_cod` đổi nhãn enum cũ `MOCK_GATEWAY` thành `COD`, giữ dữ liệu/ID/status/index và migration foundation. Các attempt demo cũ sẽ đọc ra COD; việc đổi tên không phải bằng chứng thu tiền thật. Áp dụng bằng `npm run db:migrate:deploy -- payment-service`, generate client rồi rebuild các service chịu ảnh hưởng.
 
@@ -84,12 +96,13 @@ Migration mới `20261026000000_payment_method_cod` đổi nhãn enum cũ `MOCK_
 
 ## Checklist nghiệp vụ cần làm
 
-- [ ] Lấy amount/buyer từ Order, không tin amount client.
-- [ ] Triển khai COD với xác nhận thu tiền có quyền phù hợp và provider VNPay với IPN xác minh checksum/ref/amount.
-- [ ] Bảo vệ một pending attempt, success không bị kết quả đến muộn ghi đè.
-- [ ] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
-- [ ] Test rollback, retry và event trùng nếu có consumer/producer.
-- [ ] Cập nhật ví dụ request/event và README khi thêm tính năng.
+- [x] Lấy amount/buyer từ Order, không tin amount client.
+- [x] Triển khai COD với xác nhận thu tiền có quyền phù hợp (ADMIN).
+- [ ] Provider VNPay với IPN xác minh checksum/ref/amount.
+- [x] Bảo vệ một pending attempt, success không bị kết quả đến muộn ghi đè.
+- [x] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
+- [x] Test rollback, retry và event trùng nếu có consumer/producer.
+- [x] Cập nhật ví dụ request/event và README khi thêm tính năng.
 
 ## Kiểm thử và bàn giao
 
