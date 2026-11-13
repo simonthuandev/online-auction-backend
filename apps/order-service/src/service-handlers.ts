@@ -3,6 +3,7 @@ import { HttpHandlers, EventHandlers } from '@app/common';
 import { OrderConsumer } from './order/order.consumer.js';
 import { OrderQueryService } from './order/query/order-query.service.js';
 import { PaymentContextService } from './order/payment-context/payment-context.service.js';
+import { PaymentConsumer } from './order/payment/payment.consumer.js';
 
 /** Register service-owned business handlers here; infrastructure is already wired. */
 @Injectable()
@@ -13,6 +14,7 @@ export class ServiceHandlers implements OnModuleInit {
     private readonly orderConsumer: OrderConsumer,
     private readonly orderQuery: OrderQueryService,
     private readonly paymentContext: PaymentContextService,
+    private readonly paymentConsumer: PaymentConsumer,
   ) { }
   onModuleInit() {
     // this.http.register('<operationId from contracts/openapi/order.json>', async request => { ... });
@@ -43,6 +45,11 @@ export class ServiceHandlers implements OnModuleInit {
     this.http.register('order_get__internal_orders_id_payment-context', async (request) => {
       const orderId = String(request.params.id);
       return this.paymentContext.getPaymentContext(orderId);
+    });
+
+    // Event: payment.succeeded (ORDER-04)
+    this.events.register('payment.succeeded', async (tx, event) => {
+      await this.paymentConsumer.handlePaymentSucceeded(tx, event);
     });
   }
 }

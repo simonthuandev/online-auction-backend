@@ -71,7 +71,7 @@ Host entrypoint dùng role riêng từ `ORDER_DB_USER/PASSWORD`; không copy sec
 
 - [x] Tạo Order từ auction.ended có winner; giữ auctionId unique.
 - [x] Chỉ buyer/seller của đơn được đọc.
-- [ ] payment.succeeded phải khớp buyer, amount, currency trước chuyển PAID.
+- [x] payment.succeeded phải khớp buyer, amount, currency trước chuyển PAID.
 - [ ] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
 - [ ] Test rollback, retry và event trùng nếu có consumer/producer.
 - [ ] Cập nhật ví dụ request/event và README khi thêm tính năng.

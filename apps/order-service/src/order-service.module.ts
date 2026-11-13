@@ -6,6 +6,7 @@ import { PrismaService } from './prisma/prisma.service.js';
 import { OrderConsumer } from './order/order.consumer.js';
 import { OrderQueryService } from './order/query/order-query.service.js';
 import { PaymentContextService } from './order/payment-context/payment-context.service.js';
+import { PaymentConsumer } from './order/payment/payment.consumer.js';
 
 @Module({
   providers: [
@@ -13,8 +14,14 @@ import { PaymentContextService } from './order/payment-context/payment-context.s
     OrderConsumer,
     OrderQueryService,
     PaymentContextService,
+    PaymentConsumer,
   ],
-  exports: [OrderConsumer, OrderQueryService, PaymentContextService],
+  exports: [
+    OrderConsumer,
+    OrderQueryService,
+    PaymentContextService,
+    PaymentConsumer,
+  ],
   imports: [
     PrismaModule,
     PlatformModule.register(PrismaModule, {
