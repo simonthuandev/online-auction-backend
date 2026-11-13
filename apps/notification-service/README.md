@@ -131,7 +131,7 @@ Consumer lắng nghe hàng đợi `queue.notification.events` từ RabbitMQ đ�
 | `auction.ended` | `winnerId !== null` (Có người thắng cuộc) | `AUCTION_WON` | `winnerId` | Tiêu đề: "Chúc mừng! Bạn đã thắng phiên đấu giá". `metadata`: `{ auctionId, productId, finalPrice, currency }`. Không chứa `sellerId`. |
 | `auction.ended` | `winnerId !== null` (Có người thắng cuộc) | `AUCTION_ENDED` | `sellerId` | Tiêu đề: "Phiên đấu giá đã kết thúc". `metadata`: `{ auctionId, productId, finalPrice, currency }`. Không chứa `winnerId`. |
 | `auction.ended` | `winnerId === null` (Không có người thắng) | `AUCTION_ENDED` | `sellerId` | Tiêu đề: "Phiên đấu giá đã kết thúc" (nêu rõ không có người trả giá thành công). `metadata`: `{ auctionId, productId }`. |
-| `payment.succeeded` | Mọi trường hợp | Không tạo (Tạm thời) | - | Handler no-op ghi log nhận diện event (chờ triển khai đầy đủ trong `NOTIF-03`). |
+| `payment.succeeded` | Mọi trường hợp | `PAYMENT_SUCCESS` | `userId` | Tiêu đề: "Thanh toán thành công!". `metadata`: `{ orderId, paymentId, paymentMethod }`. Tuyệt đối không chứa `transactionId`, `providerResponse`, token hay bí mật thanh toán. |
 
 #### Nguyên tắc ghi Database & Chống trùng (Idempotency):
 - Ghi trực tiếp trong cùng giao dịch `tx` được platform cung cấp.
@@ -193,6 +193,50 @@ Payload phát qua socket (`notification:new` tới room `user:10000000-0000-4000
     "currency": "VND"
   },
   "createdAt": "2026-11-10T10:00:01.000Z"
+}
+```
+
+#### Ví dụ Event `payment.succeeded` và Payload phát Realtime:
+
+Event nhận vào:
+```json
+{
+  "eventId": "30000000-0000-4000-8000-000000000002",
+  "eventName": "payment.succeeded",
+  "schemaVersion": 1,
+  "occurredAt": "2026-11-10T10:05:00.000Z",
+  "producer": "payment",
+  "aggregateId": "50000000-0000-4000-8000-000000000001",
+  "aggregateVersion": 2,
+  "correlationId": "60000000-0000-4000-8000-000000000001",
+  "payload": {
+    "paymentId": "50000000-0000-4000-8000-000000000001",
+    "orderId": "40000000-0000-4000-8000-000000000001",
+    "userId": "10000000-0000-4000-8000-000000000002",
+    "amount": "2500000",
+    "currency": "VND",
+    "paymentMethod": "VNPAY",
+    "transactionId": "VNPAY-TX-SECRET-12345",
+    "paidAt": "2026-11-10T10:05:00.000Z"
+  }
+}
+```
+
+Payload phát qua socket (`notification:new` tới room `user:10000000-0000-4000-8000-000000000002`):
+```json
+{
+  "id": "70000000-0000-4000-8000-000000000001",
+  "userId": "10000000-0000-4000-8000-000000000002",
+  "title": "Thanh toán thành công!",
+  "message": "Đơn hàng của bạn đã được thanh toán thành công qua VNPAY.",
+  "type": "PAYMENT_SUCCESS",
+  "isRead": false,
+  "metadata": {
+    "orderId": "40000000-0000-4000-8000-000000000001",
+    "paymentId": "50000000-0000-4000-8000-000000000001",
+    "paymentMethod": "VNPAY"
+  },
+  "createdAt": "2026-11-10T10:05:01.000Z"
 }
 ```
 

@@ -12,6 +12,7 @@ import { Realtime, type IntegrationEvent } from '@app/common';
 
 type BidPlacedEvent = Extract<IntegrationEvent, { eventName: 'bid.placed' }>;
 type AuctionEndedEvent = Extract<IntegrationEvent, { eventName: 'auction.ended' }>;
+type PaymentSucceededEvent = Extract<IntegrationEvent, { eventName: 'payment.succeeded' }>;
 
 if (integrationEnabled) loadEnv();
 
@@ -239,6 +240,213 @@ describe.skipIf(!integrationEnabled)(
       );
       expect(rows).toHaveLength(1);
       expect(rows[0].userId).toBe(event.payload.previousBidderId);
+    });
+
+    describe('payment.succeeded integration', () => {
+      it('xử lý cùng event payment.succeeded 2 lần -> chỉ 1 bản ghi và chỉ 1 lần phát socket', async () => {
+        const eventId = randomUUID();
+        createdEventIds.push(eventId);
+        mockRealtime.publishNotification.mockClear();
+
+        const userId = randomUUID();
+        const orderId = randomUUID();
+        const paymentId = randomUUID();
+
+        const event: PaymentSucceededEvent = {
+          eventId,
+          eventName: 'payment.succeeded',
+          schemaVersion: 1,
+          occurredAt: new Date().toISOString(),
+          producer: 'payment',
+          aggregateId: paymentId,
+          aggregateVersion: 1,
+          correlationId: randomUUID(),
+          payload: {
+            paymentId,
+            orderId,
+            userId,
+            amount: '2000000',
+            currency: 'VND',
+            paymentMethod: 'VNPAY',
+            transactionId: 'VNPAY_SECRET_123',
+            paidAt: new Date().toISOString(),
+          },
+        };
+
+        // Lần 1: xử lý trong transaction và chạy callback
+        let effect1: (() => void) | void;
+        await db.transaction(async (tx) => {
+          effect1 = await consumer.handlePaymentSucceeded(tx, event);
+        });
+        expect(typeof effect1).toBe('function');
+        effect1!();
+
+        expect(mockRealtime.publishNotification).toHaveBeenCalledTimes(1);
+        expect(mockRealtime.publishNotification).toHaveBeenCalledWith(
+          userId,
+          expect.objectContaining({
+            userId,
+            type: 'PAYMENT_SUCCESS',
+            metadata: {
+              orderId,
+              paymentId,
+              paymentMethod: 'VNPAY',
+            },
+          }),
+        );
+
+        // Lần 2: replay cùng event
+        let effect2: (() => void) | void;
+        await db.transaction(async (tx) => {
+          effect2 = await consumer.handlePaymentSucceeded(tx, event);
+        });
+
+        expect(effect2).toBeUndefined();
+
+        // Kiểm tra DB: Chỉ có đúng 1 bản ghi duy nhất
+        const { rows } = await pool.query(
+          'SELECT * FROM "Notification" WHERE "sourceEventId" = $1',
+          [eventId],
+        );
+        expect(rows).toHaveLength(1);
+        expect(rows[0].userId).toBe(userId);
+        expect(rows[0].type).toBe('PAYMENT_SUCCESS');
+        expect(rows[0].metadata).toEqual({
+          orderId,
+          paymentId,
+          paymentMethod: 'VNPAY',
+        });
+        // Tuyệt đối không chứa transactionId trong DB metadata
+        expect(rows[0].metadata).not.toHaveProperty('transactionId');
+
+        // Socket chỉ phát đúng 1 lần
+        expect(mockRealtime.publishNotification).toHaveBeenCalledTimes(1);
+      });
+
+      it('lỗi ghi trong transaction -> rollback, không có bản ghi và không phát socket', async () => {
+        const eventId = randomUUID();
+        createdEventIds.push(eventId);
+        mockRealtime.publishNotification.mockClear();
+
+        const event: PaymentSucceededEvent = {
+          eventId,
+          eventName: 'payment.succeeded',
+          schemaVersion: 1,
+          occurredAt: new Date().toISOString(),
+          producer: 'payment',
+          aggregateId: randomUUID(),
+          aggregateVersion: 1,
+          correlationId: randomUUID(),
+          payload: {
+            paymentId: randomUUID(),
+            orderId: randomUUID(),
+            userId: randomUUID(),
+            amount: '500000',
+            currency: 'VND',
+            paymentMethod: 'COD',
+            transactionId: 'COD_TXN_999',
+            paidAt: new Date().toISOString(),
+          },
+        };
+
+        await expect(
+          db.transaction(async (tx) => {
+            await consumer.handlePaymentSucceeded(tx, event);
+            throw new Error('SIMULATED_DB_ERROR_ON_PAYMENT');
+          }),
+        ).rejects.toThrow('SIMULATED_DB_ERROR_ON_PAYMENT');
+
+        const { rows } = await pool.query(
+          'SELECT * FROM "Notification" WHERE "sourceEventId" = $1',
+          [eventId],
+        );
+        expect(rows).toHaveLength(0);
+        expect(mockRealtime.publishNotification).not.toHaveBeenCalled();
+      });
+
+      it('callback chỉ chạy sau khi commit, không phát socket trong transaction', async () => {
+        const eventId = randomUUID();
+        createdEventIds.push(eventId);
+        mockRealtime.publishNotification.mockClear();
+
+        const event: PaymentSucceededEvent = {
+          eventId,
+          eventName: 'payment.succeeded',
+          schemaVersion: 1,
+          occurredAt: new Date().toISOString(),
+          producer: 'payment',
+          aggregateId: randomUUID(),
+          aggregateVersion: 1,
+          correlationId: randomUUID(),
+          payload: {
+            paymentId: randomUUID(),
+            orderId: randomUUID(),
+            userId: randomUUID(),
+            amount: '3500000',
+            currency: 'VND',
+            paymentMethod: 'VNPAY',
+            transactionId: 'VNPAY_SECRET_456',
+            paidAt: new Date().toISOString(),
+          },
+        };
+
+        let callback: (() => void) | void;
+        await db.transaction(async (tx) => {
+          callback = await consumer.handlePaymentSucceeded(tx, event);
+          expect(mockRealtime.publishNotification).not.toHaveBeenCalled();
+        });
+
+        expect(typeof callback).toBe('function');
+        callback!();
+
+        expect(mockRealtime.publishNotification).toHaveBeenCalledTimes(1);
+      });
+
+      it('socket ném lỗi không làm hỏng transaction hay ảnh hưởng bản ghi DB', async () => {
+        const eventId = randomUUID();
+        createdEventIds.push(eventId);
+
+        mockRealtime.publishNotification.mockImplementationOnce(() => {
+          throw new Error('REDIS_SOCKET_OFFLINE');
+        });
+
+        const event: PaymentSucceededEvent = {
+          eventId,
+          eventName: 'payment.succeeded',
+          schemaVersion: 1,
+          occurredAt: new Date().toISOString(),
+          producer: 'payment',
+          aggregateId: randomUUID(),
+          aggregateVersion: 1,
+          correlationId: randomUUID(),
+          payload: {
+            paymentId: randomUUID(),
+            orderId: randomUUID(),
+            userId: randomUUID(),
+            amount: '1200000',
+            currency: 'VND',
+            paymentMethod: 'COD',
+            transactionId: 'COD_RECEIPT_555',
+            paidAt: new Date().toISOString(),
+          },
+        };
+
+        let callback: (() => void) | void;
+        await db.transaction(async (tx) => {
+          callback = await consumer.handlePaymentSucceeded(tx, event);
+        });
+
+        expect(typeof callback).toBe('function');
+        expect(() => callback!()).not.toThrow();
+
+        const { rows } = await pool.query(
+          'SELECT * FROM "Notification" WHERE "sourceEventId" = $1',
+          [eventId],
+        );
+        expect(rows).toHaveLength(1);
+        expect(rows[0].userId).toBe(event.payload.userId);
+        expect(rows[0].type).toBe('PAYMENT_SUCCESS');
+      });
     });
   },
 );
