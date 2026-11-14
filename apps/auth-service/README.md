@@ -35,11 +35,108 @@ Nguồn chính: [OpenAPI](../../contracts/openapi/auth.json). Dev cung cấp `GE
 
 Completed là code thật qua controller. Implemented là handler nghiệp vụ đăng ký qua `src/service-handlers.ts`. Planned trả 501 khi chưa đăng ký handler. Demo internal chỉ bật dev/test và ghi PlatformProbe, chưa thay đổi bảng nghiệp vụ. Ownership phải kiểm tra trong handler, không chỉ dựa role.
 
+### Ví dụ API Xác thực & Bảo mật (`[AUTH-03]`)
+
+Các request public và protected có thể gọi qua KrakenD API Gateway (`http://localhost:8080`) hoặc gọi trực tiếp vào Auth Service (`http://localhost:3001` - dev/internal).
+
+#### 1. Đăng ký tài khoản (`POST /api/auth/register`)
+Mật khẩu tối đa 72 bytes UTF-8 (chuẩn bcrypt). Email tự động chuyển về chữ thường.
+
+```http
+POST /api/auth/register HTTP/1.1
+Host: localhost:8080
+Content-Type: application/json
+
+{
+  "email": "bidder@auction.test",
+  "password": "Password123!",
+  "name": "Bidder One"
+}
+```
+
+Response 201:
+```json
+{
+  "id": "10000000-0000-4000-8000-000000000003",
+  "email": "bidder@auction.test",
+  "name": "Bidder One",
+  "role": "USER",
+  "avatarUrl": null,
+  "isActive": true
+}
+```
+
+#### 2. Đăng nhập (`POST /api/auth/login`)
+Cấp cặp `accessToken` (RS256, 15 phút, stateless) và `refreshToken` (HS256, 7 ngày, băm SHA-256 lưu trong DB). Khởi tạo `familyId` mới cho chuỗi refresh.
+
+```http
+POST /api/auth/login HTTP/1.1
+Host: localhost:8080
+Content-Type: application/json
+
+{
+  "email": "bidder@auction.test",
+  "password": "Password123!"
+}
+```
+
+Response 200:
+```json
+{
+  "accessToken": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImRldi1rZXktMSJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+#### 3. Làm mới Token & Rotation (`POST /api/auth/refresh`)
+- **Single-use Token Rotation**: Mỗi lần refresh thành công, token cũ bị đánh dấu `isRevoked: true` và cấp token mới cùng `familyId`.
+- **Reuse Detection (RFC 6819)**: Nếu token đã xoay vòng bị dùng lại (tấn công token replay hoặc rò rỉ token cũ), Auth Service lập tức thu hồi toàn bộ token trong `familyId` đó.
+- **Race Condition Protection**: Khóa dòng `SELECT ... FOR UPDATE` trên bảng `"User"` và `"RefreshToken"` đảm bảo khi có nhiều request refresh đồng thời với cùng token, chính xác 1 request thành công và các request còn lại thất bại (401).
+
+```http
+POST /api/auth/refresh HTTP/1.1
+Host: localhost:8080
+Content-Type: application/json
+
+{
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+Response 200:
+```json
+{
+  "accessToken": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImRldi1rZXktMSJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+#### 4. Đăng xuất (`POST /api/auth/logout`)
+Thu hồi toàn bộ chuỗi token trong cùng `familyId`.
+
+```http
+POST /api/auth/logout HTTP/1.1
+Host: localhost:8080
+Content-Type: application/json
+
+{
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+Response 200:
+```json
+{
+  "revoked": true
+}
+```
+
 ### Ví dụ API Profile (`GET/PATCH /api/auth/me`)
 
 **Lấy thông tin cá nhân:**
 ```http
 GET /api/auth/me HTTP/1.1
+Host: localhost:8080
 Authorization: Bearer <accessToken>
 ```
 Response 200:
@@ -57,6 +154,7 @@ Response 200:
 **Cập nhật hồ sơ cá nhân:**
 ```http
 PATCH /api/auth/me HTTP/1.1
+Host: localhost:8080
 Authorization: Bearer <accessToken>
 Content-Type: application/json
 
@@ -82,6 +180,7 @@ Response 200:
 **Đổi vai trò người dùng (chỉ ADMIN):**
 ```http
 PATCH /api/admin/users/10000000-0000-4000-8000-000000000003/role HTTP/1.1
+Host: localhost:8080
 Authorization: Bearer <adminAccessToken>
 Content-Type: application/json
 
@@ -142,11 +241,11 @@ Host entrypoint dùng role riêng từ `AUTH_DB_USER/PASSWORD`; không copy secr
 
 ## Checklist nghiệp vụ cần làm
 
-- [ ] Hoàn thiện profile và quản trị role.
-- [ ] Giữ rotation/reuse detection; không lưu refresh token thô.
-- [ ] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
-- [ ] Test rollback, retry và event trùng nếu có consumer/producer.
-- [ ] Cập nhật ví dụ request/event và README khi thêm tính năng.
+- [x] Hoàn thiện profile và quản trị role.
+- [x] Giữ rotation/reuse detection; không lưu refresh token thô.
+- [x] Test request hợp lệ/sai quyền/không tồn tại/conflict và response đúng contract.
+- [x] Test rollback, retry và event trùng nếu có consumer/producer.
+- [x] Cập nhật ví dụ request/event và README khi thêm tính năng.
 
 ## Kiểm thử và bàn giao
 
